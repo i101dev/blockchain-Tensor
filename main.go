@@ -39,7 +39,7 @@ func (cli *CommandLine) printChain() {
 		block := iter.Next()
 
 		fmt.Printf("\nPrevious hash: %x", block.PrevHash)
-		fmt.Printf("\nBlock txns: %s", block.Transactions)
+		// fmt.Printf("\nBlock txns: %d", block.Transactions)
 		fmt.Printf("\nBlock hash: %x\n", block.Hash)
 
 		pow := blockchain.NewProof(block)
