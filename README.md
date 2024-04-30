@@ -1,4 +1,4 @@
-# Golang Blockchain
+# Boardgame Blockchain
 
 -   `go run main.go` to run the app
 -   `go build main.go` to build an executable file
@@ -15,15 +15,13 @@ Blockchain tech can gaurantee integrity of the game and neutralize cheaters imme
 
 -   Perfect decentralization not required for this particular use case
 
--   To run a node is a privilidge - BYO bespoke user interface &| HUD
+-   To run a `Miner-node` is a privilidge - BYO bespoke front-end
 
 -   System designed to ensure honest gameplay
 
--   Auditor-nodes can block dishonest players
+-   Node operators can block known cheaters
 
 -   To audit the chain is a right
-
--   Dishonest auditors exiled
 
 -   A player's turn constitutes a block
 
@@ -34,5 +32,7 @@ Blockchain tech can gaurantee integrity of the game and neutralize cheaters imme
 # Baseline
 
 -   Same basic architecture as any other CRUD/REST api
+
+-   Blockchain functionality in the form of a middleware
 
 -   Network sustained by PVB, i101, Oligarch, and New Earth Art Fair
