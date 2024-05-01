@@ -87,11 +87,14 @@ func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transac
 	txCopy := tx.TrimmedCopy()
 
 	for inId, in := range txCopy.Inputs {
+
 		prevTX := prevTXs[hex.EncodeToString(in.HashID)]
-		txCopy.Inputs[inId].Signature = nil
-		txCopy.Inputs[inId].PubKey = prevTX.Outputs[in.Out].PubKeyHash
+
 		txCopy.HashID = txCopy.Hash()
+
+		txCopy.Inputs[inId].Signature = nil
 		txCopy.Inputs[inId].PubKey = nil
+		txCopy.Inputs[inId].PubKey = prevTX.Outputs[in.Out].PubKeyHash
 
 		r, s, err := ecdsa.Sign(rand.Reader, &privKey, txCopy.HashID)
 
@@ -199,7 +202,7 @@ func CoinbaseTx(to string, data string) *Transaction {
 	return &tx
 }
 
-func NewTransaction(from string, to string, amount int, chain *Blockchain) *Transaction {
+func NewTransaction(from string, to string, amount int, UTXO *UTXOSet) *Transaction {
 
 	var inputs []TxInput
 	var outputs []TxOutput
@@ -210,7 +213,7 @@ func NewTransaction(from string, to string, amount int, chain *Blockchain) *Tran
 	w := wallets.GetWallet(from)
 	pubKeyHash := wallet.PublicKeyHash(w.PublicKey)
 
-	acc, validOutputs := chain.FindSpendableOutputs(pubKeyHash, amount)
+	acc, validOutputs := UTXO.FindSpendableOutputs(pubKeyHash, amount)
 
 	if acc < amount {
 		log.Panic("Error: insufficient funds")
@@ -234,7 +237,7 @@ func NewTransaction(from string, to string, amount int, chain *Blockchain) *Tran
 
 	tx := Transaction{nil, inputs, outputs}
 	tx.HashID = tx.Hash()
-	chain.SignTransaction(&tx, w.PrivateKey)
+	UTXO.Blockchain.SignTransaction(&tx, w.PrivateKey)
 
 	return &tx
 }

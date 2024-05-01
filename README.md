@@ -31,8 +31,8 @@ Blockchain tech can gaurantee integrity of the game and neutralize cheaters imme
 
 # Baseline
 
--   Same basic architecture as any other CRUD/REST api
+-   Blockchain as a middleware
 
--   Blockchain functionality in the form of a middleware
+-   Standard CRUD/REST api architecture
 
 -   Network sustained by PVB, i101, Oligarch, and New Earth Art Fair

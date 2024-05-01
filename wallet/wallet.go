@@ -67,9 +67,7 @@ func PublicKeyHash(pubKey []byte) []byte {
 
 	Handle(err)
 
-	publicRipMD := hasher.Sum(nil)
-
-	return publicRipMD
+	return hasher.Sum(nil)
 }
 
 func CheckSum(payload []byte) []byte {
@@ -86,5 +84,4 @@ func ValidateAddress(address string) bool {
 	targetCheckSum := CheckSum(append([]byte{version}, pubKeyHash...))
 
 	return bytes.Equal(actualCheckSum, targetCheckSum)
-	// return bytes.Compare(actualCheckSum, targetCheckSum) == 0
 }
