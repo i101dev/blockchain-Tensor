@@ -48,20 +48,20 @@ func (tx Transaction) Hash() []byte {
 	return hash[:]
 }
 
-func (tx *Transaction) SetID() {
+// func (tx *Transaction) SetID() {
 
-	var encoded bytes.Buffer
-	var hash [32]byte
+// 	var encoded bytes.Buffer
+// 	var hash [32]byte
 
-	encode := gob.NewEncoder(&encoded)
-	err := encode.Encode(tx)
+// 	encode := gob.NewEncoder(&encoded)
+// 	err := encode.Encode(tx)
 
-	Handle(err)
+// 	Handle(err)
 
-	hash = sha256.Sum256(encoded.Bytes())
+// 	hash = sha256.Sum256(encoded.Bytes())
 
-	tx.HashID = hash[:]
-}
+// 	tx.HashID = hash[:]
+// }
 
 func (tx *Transaction) IsCoinbase() bool {
 
@@ -190,14 +190,18 @@ func (tx *Transaction) TrimmedCopy() Transaction {
 func CoinbaseTx(to string, data string) *Transaction {
 
 	if data == "" {
-		data = fmt.Sprintf("Coins to %s", to)
+		// data = fmt.Sprintf("Coins to %s", to)
+		randData := make([]byte, 24)
+		_, err := rand.Read(randData)
+		Handle(err)
+		data = fmt.Sprintf("%x", randData)
 	}
 
 	txin := TxInput{[]byte{}, -1, nil, []byte(data)}
-	txout := NewTXOutput(100, to)
+	txout := NewTXOutput(10, to)
 
 	tx := Transaction{nil, []TxInput{txin}, []TxOutput{*txout}}
-	tx.SetID()
+	tx.HashID = tx.Hash()
 
 	return &tx
 }
