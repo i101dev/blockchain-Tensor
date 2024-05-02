@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/i101dev/golang-blockchain/blockchain"
+	"github.com/i101dev/golang-blockchain/network"
 	"github.com/i101dev/golang-blockchain/wallet"
 )
 
@@ -19,12 +20,14 @@ func (cli *CommandLine) printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("-  createblockchain -address ADDRESS creates a blockchain and sends genesis reward to address")
 	fmt.Println("-  getbalance -address ADDRESS - get the balance for an address")
-	fmt.Println("-  send -from FROM -to TO -amount AMOUNT - Send amount of coins")
+	fmt.Println("-  send -from FROM -to TO -amount AMOUNT -mine - Send amount of coins")
 
 	fmt.Println("-  listAddresses - Lists the addresses in out wallet file")
 	fmt.Println("-  createWallet - Creates a new Wallet")
 	fmt.Println("-  reindexutxo - Rebuilds the UTXO set")
 	fmt.Println("-  printchain - Prints the blocks in the chain")
+
+	fmt.Println("-  startnode -miner ADDRESS - Start a node with ID specified in NODE_ID env.")
 }
 
 func (cli *CommandLine) validateArgs() {
@@ -34,9 +37,9 @@ func (cli *CommandLine) validateArgs() {
 	}
 }
 
-func (cli *CommandLine) printChain() {
+func (cli *CommandLine) printChain(nodeID string) {
 
-	chain := blockchain.ContinueBlockChain("")
+	chain := blockchain.ContinueBlockChain(nodeID)
 	defer chain.Database.Close()
 	iter := chain.Iterator()
 
@@ -64,13 +67,13 @@ func (cli *CommandLine) printChain() {
 	}
 }
 
-func (cli *CommandLine) createBlockchain(address string) {
+func (cli *CommandLine) createBlockchain(address string, nodeID string) {
 
 	if !wallet.ValidateAddress(address) {
 		log.Panic("Bogus address!")
 	}
 
-	chain := blockchain.InitBlockChain(address)
+	chain := blockchain.InitBlockChain(address, nodeID)
 	chain.Database.Close()
 
 	UTXOset := blockchain.UTXOSet{Blockchain: chain}
@@ -79,13 +82,13 @@ func (cli *CommandLine) createBlockchain(address string) {
 	fmt.Println("Finished creating blockchain")
 }
 
-func (cli *CommandLine) getBalance(address string) {
+func (cli *CommandLine) getBalance(address string, nodeID string) {
 
 	if !wallet.ValidateAddress(address) {
 		log.Panic("Bogus address!")
 	}
 
-	chain := blockchain.ContinueBlockChain(address)
+	chain := blockchain.ContinueBlockChain(nodeID)
 	UTXOset := blockchain.UTXOSet{Blockchain: chain}
 	defer chain.Database.Close()
 
@@ -100,10 +103,12 @@ func (cli *CommandLine) getBalance(address string) {
 		balance += out.Value
 	}
 
-	fmt.Printf("Balance of %s: %d\n", address, balance)
+	fmt.Println()
+	fmt.Printf("*** >>> Balance of %s: %d\n", address, balance)
+	fmt.Println()
 }
 
-func (cli *CommandLine) send(from string, to string, amount int) {
+func (cli *CommandLine) send(from string, to string, amount int, nodeID string, mineNow bool) {
 
 	if !wallet.ValidateAddress(from) {
 		log.Panic("Bogus - from - address!")
@@ -113,31 +118,47 @@ func (cli *CommandLine) send(from string, to string, amount int) {
 		log.Panic("Bogus - to - address!")
 	}
 
-	chain := blockchain.ContinueBlockChain(from)
+	chain := blockchain.ContinueBlockChain(nodeID)
 	UTXOset := blockchain.UTXOSet{Blockchain: chain}
 	defer chain.Database.Close()
 
-	tx := blockchain.NewTransaction(from, to, amount, &UTXOset)
-	cbtx := blockchain.CoinbaseTx(from, "")
+	wallets, err := wallet.CreateWallets(nodeID)
+	if err != nil {
+		log.Panic(err)
+	}
 
-	block := chain.AddBlock([]*blockchain.Transaction{cbtx, tx})
+	wallet := wallets.GetWallet(from)
 
-	UTXOset.Update(block)
-	chain.AddBlock([]*blockchain.Transaction{tx})
+	tx := blockchain.NewTransaction(&wallet, from, to, amount, &UTXOset)
 
-	fmt.Println("Send transaction was a success")
+	if mineNow {
+		cbtx := blockchain.CoinbaseTx(from, "")
+		txs := []*blockchain.Transaction{cbtx, tx}
+		block := chain.MineBlock(txs)
+		UTXOset.Update(block)
+	} else {
+		network.SendTx(network.KnownNodes[0], tx)
+		fmt.Println("send tx")
+	}
+
+	fmt.Println()
+	fmt.Println("*** >>> Send transaction was a success")
+	fmt.Print()
 }
 
-func (cli *CommandLine) createWallet() {
-	wallets, _ := wallet.CreateWallets()
+func (cli *CommandLine) createWallet(nodeID string) {
+
+	wallets, _ := wallet.CreateWallets(nodeID)
 	address := wallets.AddWallet()
-	wallets.SaveFile()
+
+	wallets.SaveFile(nodeID)
 
 	fmt.Printf("New address is: %s\n", address)
 }
 
-func (cli *CommandLine) listAddresses() {
-	wallets, _ := wallet.CreateWallets()
+func (cli *CommandLine) listAddresses(nodeID string) {
+
+	wallets, _ := wallet.CreateWallets(nodeID)
 
 	addresses := wallets.GetAllAddresses()
 
@@ -146,10 +167,14 @@ func (cli *CommandLine) listAddresses() {
 	}
 }
 
-func (cli *CommandLine) reindexutxo() {
-	chain := blockchain.ContinueBlockChain("")
+func (cli *CommandLine) reindexutxo(nodeID string) {
+
+	chain := blockchain.ContinueBlockChain(nodeID)
+
 	defer chain.Database.Close()
+
 	UTXOset := blockchain.UTXOSet{Blockchain: chain}
+
 	UTXOset.Reindex()
 
 	count := UTXOset.CountTransactions()
@@ -158,9 +183,32 @@ func (cli *CommandLine) reindexutxo() {
 	fmt.Println()
 }
 
+func (cli *CommandLine) StartNode(nodeID string, minerAddress string) {
+
+	fmt.Printf("Starting Node %s\n", nodeID)
+
+	if len(minerAddress) > 0 {
+		if wallet.ValidateAddress(minerAddress) {
+			fmt.Println("Mining is on. Address to receive rewards: ", minerAddress)
+		} else {
+			log.Panic("Wrong miner address")
+		}
+	}
+
+	network.StartServer(nodeID, minerAddress)
+}
+
 func (cli *CommandLine) Run() {
+
 	cli.validateArgs()
 
+	nodeID := os.Getenv("NODE_ID")
+	if nodeID == "" {
+		fmt.Printf("\n*** >>> NODE_ID env is not set <<< ***\n")
+		runtime.Goexit()
+	}
+
+	startNodeCmd := flag.NewFlagSet("startnode", flag.ExitOnError)
 	getBalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
 	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
@@ -175,6 +223,8 @@ func (cli *CommandLine) Run() {
 	sendFrom := sendCmd.String("from", "", "Source wallet address")
 	sendTo := sendCmd.String("to", "", "Destination wallet address")
 	sendAmount := sendCmd.Int("amount", 0, "Amount to send")
+	sendMine := sendCmd.Bool("mine", false, "Mine immediately on the same node")
+	startNodeMiner := startNodeCmd.String("miner", "", "Enable mining mode and send reward")
 
 	switch os.Args[1] {
 
@@ -206,6 +256,10 @@ func (cli *CommandLine) Run() {
 		err := reindexutxoCmd.Parse(os.Args[2:])
 		Handle(err)
 
+	case "startnode":
+		err := startNodeCmd.Parse(os.Args[2:])
+		Handle(err)
+
 	default:
 		cli.printUsage()
 		runtime.Goexit()
@@ -216,7 +270,7 @@ func (cli *CommandLine) Run() {
 			getBalanceCmd.Usage()
 			runtime.Goexit()
 		}
-		cli.getBalance(*getBalanceAddress)
+		cli.getBalance(*getBalanceAddress, nodeID)
 	}
 
 	if createBlockchainCmd.Parsed() {
@@ -224,11 +278,11 @@ func (cli *CommandLine) Run() {
 			createBlockchainCmd.Usage()
 			runtime.Goexit()
 		}
-		cli.createBlockchain(*createBlockchainAddress)
+		cli.createBlockchain(*createBlockchainAddress, nodeID)
 	}
 
 	if printChainCmd.Parsed() {
-		cli.printChain()
+		cli.printChain(nodeID)
 	}
 
 	if sendCmd.Parsed() {
@@ -237,17 +291,28 @@ func (cli *CommandLine) Run() {
 			runtime.Goexit()
 		}
 
-		cli.send(*sendFrom, *sendTo, *sendAmount)
+		cli.send(*sendFrom, *sendTo, *sendAmount, nodeID, *sendMine)
 	}
 
 	if createWalletCmd.Parsed() {
-		cli.createWallet()
+		cli.createWallet(nodeID)
 	}
 	if listAddressesCmd.Parsed() {
-		cli.listAddresses()
+		cli.listAddresses(nodeID)
 	}
 	if reindexutxoCmd.Parsed() {
-		cli.reindexutxo()
+		cli.reindexutxo(nodeID)
+	}
+	if startNodeCmd.Parsed() {
+
+		nodeID := os.Getenv("NODE_ID")
+
+		if nodeID == "" {
+			startNodeCmd.Usage()
+			runtime.Goexit()
+		}
+
+		cli.StartNode(nodeID, *startNodeMiner)
 	}
 }
 

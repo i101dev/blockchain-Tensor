@@ -234,7 +234,7 @@ func HandleConnection(conn net.Conn, chain *blockchain.Blockchain) {
 		HandleTx(req, chain)
 	case "version":
 		HandleVersion(req, chain)
-		//
+	//
 	default:
 		fmt.Println("Unknown command")
 	}
@@ -436,7 +436,7 @@ func HandleInv(request []byte, chain *blockchain.Blockchain) {
 		newInTransit := [][]byte{}
 
 		for _, b := range blocksInTransit {
-			if bytes.Compare(b, blockHash) != 0 {
+			if !bytes.Equal(b, blockHash) {
 				newInTransit = append(newInTransit, b)
 			}
 		}
@@ -447,7 +447,7 @@ func HandleInv(request []byte, chain *blockchain.Blockchain) {
 	if payload.Type == "tx" {
 		txID := payload.Items[0]
 
-		if memoryPool[hex.EncodeToString(txID)].HashID == nil {
+		if memoryPool[hex.EncodeToString(txID)].ID == nil {
 			SendGetData(payload.AddrFrom, "tx", txID)
 		}
 	}
@@ -459,7 +459,7 @@ func MineTx(chain *blockchain.Blockchain) {
 
 	for id := range memoryPool {
 
-		fmt.Printf("tx: %s\n", memoryPool[id].HashID)
+		fmt.Printf("tx: %s\n", memoryPool[id].ID)
 
 		tx := memoryPool[id]
 
@@ -477,13 +477,13 @@ func MineTx(chain *blockchain.Blockchain) {
 	txs = append(txs, cbTx)
 
 	newBlock := chain.MineBlock(txs)
-	UTXOset := blockchain.UTXOSet{chain}
+	UTXOset := blockchain.UTXOSet{Blockchain: chain}
 
 	UTXOset.Reindex()
 
 	fmt.Println("\n** >>> New block mined")
 
-	for _, tx := range tx {
+	for _, tx := range txs {
 		txID := hex.EncodeToString(tx.ID)
 		delete(memoryPool, txID)
 	}

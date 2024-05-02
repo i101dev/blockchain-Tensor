@@ -93,7 +93,7 @@ func (u *UTXOSet) Update(block *Block) {
 			newOutputs := TxOutputs{}
 			newOutputs.Outputs = append(newOutputs.Outputs, tx.Outputs...)
 
-			txID := append(utxoPrefix, tx.HashID...)
+			txID := append(utxoPrefix, tx.ID...)
 			if err := txn.Set(txID, newOutputs.Serialize()); err != nil {
 				log.Panic(err)
 			}
