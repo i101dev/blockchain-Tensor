@@ -14,6 +14,7 @@ require (
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/golang/protobuf v1.3.1 // indirect
 	github.com/pkg/errors v0.8.1 // indirect
+	github.com/vrecan/death v3.0.1+incompatible // indirect
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/sys v0.19.0 // indirect
 )
