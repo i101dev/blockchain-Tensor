@@ -93,7 +93,7 @@ func ExtractCmd(request []byte) []byte {
 	return request[:commandLength]
 }
 
-func SendAddr(address string) {
+func SendAddr(address string) error {
 
 	nodes := Addr{KnownNodes}
 	nodes.AddrList = append(nodes.AddrList, nodeAddress)
@@ -101,60 +101,61 @@ func SendAddr(address string) {
 	payload := GobEncode(nodes)
 	request := append(CmdToBytes("addr"), payload...)
 
-	SendData(address, request)
+	return SendData(address, request)
 }
 
-func SendBlock(addr string, b *blockchain.Block) {
+func SendBlock(addr string, b *blockchain.Block) error {
 
 	data := Block{nodeAddress, b.Serialize()}
 	payload := GobEncode(data)
 	request := append(CmdToBytes("block"), payload...)
 
-	SendData(addr, request)
+	return SendData(addr, request)
 }
 
-func SendInv(address string, kind string, items [][]byte) {
+func SendInv(address string, kind string, items [][]byte) error {
 	inventory := Inv{nodeAddress, kind, items}
 	payload := GobEncode(inventory)
 	request := append(CmdToBytes("inv"), payload...)
 
-	SendData(address, request)
+	return SendData(address, request)
 }
 
-func SendTx(address string, txn *blockchain.Transaction) {
+func SendTx(address string, txn *blockchain.Transaction) error {
 	data := Tx{nodeAddress, txn.Serialize()}
 	payload := GobEncode(data)
 	request := append(CmdToBytes("tx"), payload...)
 
-	SendData(address, request)
+	return SendData(address, request)
 }
 
-func SendVersion(address string, chain *blockchain.Blockchain) {
+func SendVersion(address string, chain *blockchain.Blockchain) error {
 	bestHeight := chain.GetBestHeight()
 	payload := GobEncode(Version{version, bestHeight, nodeAddress})
 	request := append(CmdToBytes("version"), payload...)
 
-	SendData(address, request)
+	return SendData(address, request)
 }
 
-func SendGetBlocks(address string) {
+func SendGetBlocks(address string) error {
 	payload := GobEncode(GetBlocks{nodeAddress})
 	request := append(CmdToBytes("getblocks"), payload...)
-	SendData(address, request)
+	return SendData(address, request)
 }
 
-func SendGetData(address string, kind string, id []byte) {
+func SendGetData(address string, kind string, id []byte) error {
 	payload := GobEncode(GetData{nodeAddress, kind, id})
 	request := append(CmdToBytes("getdata"), payload...)
-	SendData(address, request)
+	return SendData(address, request)
 }
 
-func SendData(addr string, data []byte) {
+func SendData(addr string, data []byte) error {
 
 	conn, err := net.Dial(protocol, addr)
 
 	if err != nil {
-		fmt.Printf("[%s] is not available\n", addr)
+		// fmt.Println("[ERROR]: ", err.Error())
+		// fmt.Printf("[%s] is not available\n", addr)
 		var updatedNodes []string
 
 		for _, node := range KnownNodes {
@@ -165,16 +166,16 @@ func SendData(addr string, data []byte) {
 
 		KnownNodes = updatedNodes
 
-		return
+		return fmt.Errorf("failed to dial node")
 	}
 
 	defer conn.Close()
 
-	_, err = io.Copy(conn, bytes.NewReader(data))
-
-	if err != nil {
-		log.Panic(err)
+	if _, err = io.Copy(conn, bytes.NewReader(data)); err != nil {
+		return fmt.Errorf("io.Copy failed")
 	}
+
+	return nil
 }
 
 func GobEncode(data interface{}) []byte {

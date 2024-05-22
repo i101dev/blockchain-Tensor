@@ -82,7 +82,6 @@ func ContinueBlockChain(nodeID string) *Blockchain {
 
 	path := fmt.Sprintf(dbPath, nodeID)
 
-	fmt.Printf("\nPath %s\n", path)
 	fmt.Println()
 
 	if !DBexists(path) {
@@ -93,6 +92,7 @@ func ContinueBlockChain(nodeID string) *Blockchain {
 	var lastHash []byte
 
 	opts := badger.DefaultOptions(path)
+	opts.Logger = &NullLogger{}
 	db, err := openDB(path, opts)
 	Handle(err)
 
@@ -373,6 +373,7 @@ func retry(dir string, originalOpts badger.Options) (*badger.DB, error) {
 
 	retryOpts := originalOpts
 	retryOpts.Truncate = true
+	retryOpts.Logger = &NullLogger{}
 
 	db, err := badger.Open(retryOpts)
 
