@@ -12,7 +12,7 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/i101dev/golang-blockchain/blockchain"
+	"github.com/i101dev/blockchain-Tensor/blockchain"
 	"github.com/vrecan/death"
 )
 

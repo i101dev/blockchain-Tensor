@@ -25,6 +25,16 @@ type Blockchain struct {
 	Database *badger.DB
 }
 
+type NullLogger struct{}
+
+func (l *NullLogger) Errorf(string, ...interface{})   {}
+func (l *NullLogger) Warningf(string, ...interface{}) {}
+func (l *NullLogger) Infof(string, ...interface{})    {}
+func (l *NullLogger) Debugf(string, ...interface{})   {}
+
+// --------------------------------------------------------------------
+// --------------------------------------------------------------------
+
 func InitBlockChain(address string, nodeID string) *Blockchain {
 
 	path := fmt.Sprintf(dbPath, nodeID)
@@ -40,8 +50,9 @@ func InitBlockChain(address string, nodeID string) *Blockchain {
 	var lastHash []byte
 
 	opts := badger.DefaultOptions(path)
+	opts.Logger = &NullLogger{}
+
 	db, err := openDB(path, opts)
-	fmt.Println("Error opening DB")
 	Handle(err)
 
 	err = db.Update(func(txn *badger.Txn) error {
@@ -375,11 +386,11 @@ func openDB(dir string, opts badger.Options) (*badger.DB, error) {
 		if strings.Contains(err.Error(), "LOCK") {
 
 			if db, err := retry(dir, opts); err == nil {
-				log.Println("database unlocked, value log truncated")
+				log.Println("*** >>> database unlocked, value log truncated")
 				return db, nil
 			}
 
-			log.Println("could not unlock database")
+			log.Println("*** >>> could not unlock database")
 		}
 
 		return nil, err

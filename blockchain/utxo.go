@@ -31,9 +31,7 @@ func (u UTXOSet) Reindex() {
 
 			key, err := hex.DecodeString(txId)
 
-			if err != nil {
-				return err
-			}
+			Handle(err)
 
 			key = append(utxoPrefix, key...)
 
