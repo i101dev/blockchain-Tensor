@@ -40,8 +40,7 @@ func (cli *CommandLine) Run() {
 
 	nodeID := os.Getenv("NODE_ID")
 	if nodeID == "" {
-		fmt.Printf("\n*** >>> NODE_ID env is not set <<< ***\n")
-		runtime.Goexit()
+		log.Fatal("*** >>> NODE_ID env is not set <<< ***")
 	}
 
 	startNodeCmd := flag.NewFlagSet("startnode", flag.ExitOnError)
@@ -61,6 +60,11 @@ func (cli *CommandLine) Run() {
 	sendAmount := sendCmd.Int("amount", 0, "Amount to send")
 	sendMine := sendCmd.Bool("mine", false, "Mine immediately on the same node")
 	startNodeMiner := startNodeCmd.String("miner", "", "Enable mining mode and send reward")
+
+	if len(os.Args) < 2 {
+		cli.printUsage()
+		runtime.Goexit()
+	}
 
 	switch os.Args[1] {
 
@@ -133,15 +137,16 @@ func (cli *CommandLine) Run() {
 	if createWalletCmd.Parsed() {
 		api.CreateWallet(nodeID)
 	}
+
 	if listAddressesCmd.Parsed() {
 		api.ListAddresses(nodeID)
 	}
+
 	if reindexutxoCmd.Parsed() {
 		api.ReindexUTXO(nodeID)
 	}
-	if startNodeCmd.Parsed() {
 
-		nodeID := os.Getenv("NODE_ID")
+	if startNodeCmd.Parsed() {
 
 		if nodeID == "" {
 			startNodeCmd.Usage()

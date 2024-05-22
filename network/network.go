@@ -180,13 +180,10 @@ func SendData(addr string, data []byte) error {
 
 func GobEncode(data interface{}) []byte {
 
-	// Designate the target location for data to be encoded
 	var buff bytes.Buffer
 
-	// Build the machine that will do the encoding
 	enc := gob.NewEncoder(&buff)
 
-	// Use the machine, and deliver the encoded `data` to `buff`
 	if err := enc.Encode(data); err != nil {
 		log.Panic(err)
 	}
@@ -518,12 +515,16 @@ func RequestBlocks() {
 func StartServer(nodeID string, minerAddr string) {
 
 	nodeAddress = fmt.Sprintf("localhost:%s", nodeID)
+	// KnownNodes = append(KnownNodes, nodeAddress)
 	minerAddress = minerAddr
 
 	ln, err := net.Listen(protocol, nodeAddress)
 
 	if err != nil {
 		log.Panic(err)
+	} else {
+		fmt.Println("Node started @", nodeID)
+		fmt.Println("KnownNodes -", KnownNodes)
 	}
 
 	defer ln.Close()

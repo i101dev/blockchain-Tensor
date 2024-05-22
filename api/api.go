@@ -157,6 +157,29 @@ func HandlePrintChain(w http.ResponseWriter, r *http.Request) {
 	w.Write(chainData)
 }
 
+func HandleListNodes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	chainData := network.KnownNodes
+	log.Printf("Number of known nodes: %d", len(chainData))
+
+	jsonData, err := json.Marshal(chainData)
+	if err != nil {
+		http.Error(w, "Failed to encode data", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, writeErr := w.Write(jsonData)
+	if writeErr != nil {
+		log.Printf("Failed to write response: %v", writeErr)
+	}
+}
+
 // -------------------------------------------------------------------------------
 func CreateBlockchain(address string, nodeID string) {
 	if !wallet.ValidateAddress(address) {
@@ -191,6 +214,8 @@ func GetBalance(address string, nodeID string) int {
 	for _, out := range UTXOs {
 		balance += out.Value
 	}
+
+	fmt.Println("Balance: ", balance)
 
 	return balance
 }
@@ -274,16 +299,22 @@ func PrintChain(nodeID string) []byte {
 
 	for {
 		block := iter.NextBlock()
+
+		fmt.Printf("Hash: %x\n", block.Hash)
+		fmt.Printf("Prev. hash: %x\n", block.PrevHash)
 		pow := blockchain.NewProof(block)
 		powIsValid := strconv.FormatBool(pow.Validate())
 
 		blockInfo := fmt.Sprintf("\nPrevious hash: %x\nBlock hash: %x\nPoW: %s\n", block.PrevHash, block.Hash, powIsValid)
 		result = append(result, []byte(blockInfo)...)
 
+		fmt.Printf("PoW: %s\n", strconv.FormatBool(pow.Validate()))
 		for _, tx := range block.Transactions {
 			txInfo := fmt.Sprintf("%+v\n", tx)
 			result = append(result, []byte(txInfo)...)
+			fmt.Println(tx)
 		}
+		fmt.Println()
 
 		if len(block.PrevHash) == 0 {
 			break
@@ -298,9 +329,9 @@ func StartNode(nodeID string, minerAddress string) {
 
 	if len(minerAddress) > 0 {
 		if wallet.ValidateAddress(minerAddress) {
-			fmt.Println("Mining is on. Address to receive rewards: ", minerAddress)
+			fmt.Println("\n*** >>> Mining is on. Address to receive rewards: ", minerAddress)
 		} else {
-			log.Panic("Wrong miner address")
+			log.Panic("\n*** >>> Wrong miner address")
 		}
 	}
 
