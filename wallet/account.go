@@ -14,12 +14,12 @@ const (
 	version        = byte(0x00)
 )
 
-type Wallet struct {
+type Account struct {
 	PrivateKey ecdsa.PrivateKey
 	PublicKey  []byte
 }
 
-func (w Wallet) Address() []byte {
+func (w Account) Address() []byte {
 
 	pubHash := PublicKeyHash(w.PublicKey)
 
@@ -51,9 +51,9 @@ func NewKeyPair() (ecdsa.PrivateKey, []byte) {
 	return *private, public
 }
 
-func MakeWallet() *Wallet {
+func MakeAccount() *Account {
 	private, public := NewKeyPair()
-	wallet := Wallet{private, public}
+	wallet := Account{private, public}
 	return &wallet
 }
 
@@ -76,9 +76,11 @@ func CheckSum(payload []byte) []byte {
 	return secondHash[:checkSumLength]
 }
 
-func ValidateAddress(address string) bool {
+func ValidAddress(address string) bool {
+
 	pubKeyHash := Base58Decode([]byte(address))
 	actualCheckSum := pubKeyHash[len(pubKeyHash)-checkSumLength:]
+
 	version := pubKeyHash[0]
 	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-checkSumLength]
 	targetCheckSum := CheckSum(append([]byte{version}, pubKeyHash...))

@@ -207,7 +207,7 @@ func CoinbaseTx(to string, data string) *Transaction {
 	return &tx
 }
 
-func NewTransaction(w *wallet.Wallet, from string, to string, amount int, UTXO *UTXOSet) (*Transaction, bool) {
+func NewTransaction(w *wallet.Account, from string, to string, amount int, UTXO *UTXOSet) (*Transaction, bool) {
 
 	var inputs []TxInput
 	var outputs []TxOutput

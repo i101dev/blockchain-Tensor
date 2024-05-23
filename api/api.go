@@ -182,7 +182,7 @@ func HandleListNodes(w http.ResponseWriter, r *http.Request) {
 
 // -------------------------------------------------------------------------------
 func CreateBlockchain(address string, nodeID string) {
-	if !wallet.ValidateAddress(address) {
+	if !wallet.ValidAddress(address) {
 		log.Panic("Bogus address!")
 	}
 
@@ -196,7 +196,7 @@ func CreateBlockchain(address string, nodeID string) {
 }
 
 func GetBalance(address string, nodeID string) int {
-	if !wallet.ValidateAddress(address) {
+	if !wallet.ValidAddress(address) {
 		log.Panic("Bogus address!")
 	}
 
@@ -226,11 +226,11 @@ func Send(from string, to string, amount int, nodeID string, mineNow bool) (bool
 		return false, fmt.Errorf("zero nodes online")
 	}
 
-	if !wallet.ValidateAddress(from) {
+	if !wallet.ValidAddress(from) {
 		log.Panic("\n*** >>> Bogus - from - address!")
 	}
 
-	if !wallet.ValidateAddress(to) {
+	if !wallet.ValidAddress(to) {
 		log.Panic("\n*** >>> Bogus - to - address!")
 	}
 
@@ -238,12 +238,12 @@ func Send(from string, to string, amount int, nodeID string, mineNow bool) (bool
 	UTXOset := blockchain.UTXOSet{Blockchain: chain}
 	defer chain.Database.Close()
 
-	wallets, err := wallet.CreateWallets(nodeID)
+	wallets, err := wallet.LoadWallet(nodeID)
 	if err != nil {
 		log.Panicln("\n*** >>> error creating wallets", err)
 	}
 
-	wallet := wallets.GetWallet(from)
+	wallet := wallets.GetAccount(from)
 
 	tx, success := blockchain.NewTransaction(&wallet, from, to, amount, &UTXOset)
 
@@ -269,16 +269,15 @@ func Send(from string, to string, amount int, nodeID string, mineNow bool) (bool
 }
 
 func CreateWallet(nodeID string) string {
-	wallets, _ := wallet.CreateWallets(nodeID)
-	address := wallets.AddWallet()
-
+	wallets, _ := wallet.LoadWallet(nodeID)
+	address := wallets.AddAccount()
 	wallets.SaveFile(nodeID)
 
 	return address
 }
 
 func ListAddresses(nodeID string) []string {
-	wallets, _ := wallet.CreateWallets(nodeID)
+	wallets, _ := wallet.LoadWallet(nodeID)
 	return wallets.GetAllAddresses()
 }
 
@@ -328,7 +327,7 @@ func StartNode(nodeID string, minerAddress string) {
 	fmt.Printf("Starting Node %s\n", nodeID)
 
 	if len(minerAddress) > 0 {
-		if wallet.ValidateAddress(minerAddress) {
+		if wallet.ValidAddress(minerAddress) {
 			fmt.Println("\n*** >>> Mining is on. Address to receive rewards: ", minerAddress)
 		} else {
 			log.Panic("\n*** >>> Wrong miner address")

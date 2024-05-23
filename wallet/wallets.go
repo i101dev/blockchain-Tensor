@@ -13,43 +13,39 @@ import (
 
 const walletFile = "./tmp/wallets_%s.data"
 
-type Wallets struct {
-	Wallets map[string]*Wallet
+type Wallet struct {
+	Accounts map[string]*Account
 }
 
-func CreateWallets(nodeID string) (*Wallets, error) {
-	wallets := Wallets{}
-	wallets.Wallets = make(map[string]*Wallet)
-
+func LoadWallet(nodeID string) (*Wallet, error) {
+	wallets := Wallet{}
+	wallets.Accounts = make(map[string]*Account)
 	err := wallets.LoadFile(nodeID)
-
 	return &wallets, err
 }
 
-func (ws *Wallets) AddWallet() string {
-	wallet := MakeWallet()
+func (ws *Wallet) AddAccount() string {
+	wallet := MakeAccount()
 	address := string(wallet.Address())
 
-	ws.Wallets[address] = wallet
+	ws.Accounts[address] = wallet
 
 	return address
 }
 
-func (ws *Wallets) GetAllAddresses() []string {
+func (ws *Wallet) GetAllAddresses() []string {
 	var addresses []string
-
-	for address := range ws.Wallets {
+	for address := range ws.Accounts {
 		addresses = append(addresses, address)
 	}
-
 	return addresses
 }
 
-func (ws Wallets) GetWallet(address string) Wallet {
-	return *ws.Wallets[address]
+func (ws Wallet) GetAccount(address string) Account {
+	return *ws.Accounts[address]
 }
 
-func (ws *Wallets) LoadFile(nodeID string) error {
+func (ws *Wallet) LoadFile(nodeID string) error {
 
 	walletFile := fmt.Sprintf(walletFile, nodeID)
 	if _, err := os.Stat(walletFile); os.IsNotExist(err) {
@@ -61,19 +57,19 @@ func (ws *Wallets) LoadFile(nodeID string) error {
 		return err
 	}
 
-	var wallets Wallets
+	var w Wallet
 	decoder := gob.NewDecoder(bytes.NewReader(fileContent))
-	err = decoder.Decode(&wallets)
+	err = decoder.Decode(&w)
 	if err != nil {
 		return err
 	}
 
-	ws.Wallets = wallets.Wallets
+	ws.Accounts = w.Accounts
 
 	return nil
 }
 
-func (ws *Wallets) SaveFile(nodeID string) {
+func (ws *Wallet) SaveFile(nodeID string) {
 
 	var content bytes.Buffer
 	walletFile := fmt.Sprintf(walletFile, nodeID)
@@ -91,14 +87,14 @@ func (ws *Wallets) SaveFile(nodeID string) {
 }
 
 // ----------------------------------------------------------
-type _PrivateKey struct {
+type PrivKey struct {
 	D          *big.Int
 	PublicKeyX *big.Int
 	PublicKeyY *big.Int
 }
 
-func (w *Wallet) GobEncode() ([]byte, error) {
-	privKey := &_PrivateKey{
+func (w *Account) GobEncode() ([]byte, error) {
+	privKey := &PrivKey{
 		D:          w.PrivateKey.D,
 		PublicKeyX: w.PrivateKey.PublicKey.X,
 		PublicKeyY: w.PrivateKey.PublicKey.Y,
@@ -120,9 +116,9 @@ func (w *Wallet) GobEncode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (w *Wallet) GobDecode(data []byte) error {
+func (w *Account) GobDecode(data []byte) error {
 	buf := bytes.NewBuffer(data)
-	var privKey _PrivateKey
+	var privKey PrivKey
 
 	decoder := gob.NewDecoder(buf)
 	err := decoder.Decode(&privKey)
