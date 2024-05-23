@@ -268,9 +268,6 @@ func ValidAddress(address string) bool {
 }
 
 // ----------------------------------------------------------------------------
-// Custom serialization for Account struct
-
-// ----------------------------------------------------------------------------
 
 func main() {
 
@@ -282,12 +279,19 @@ func main() {
 	}
 
 	allAddrs := wallet.GetAllAddresses()
-	acct := wallet.GetAccount(allAddrs[0])
 
-	// fmt.Println("\nwallet -", allAddrs)
+	fmt.Println("\nwallet -", allAddrs)
+
+	// acct := wallet.GetAccount(allAddrs[0])
 	// fmt.Printf("\n*** >>> [PrivateKey] - %+v", acct.PrivateKey())
 	// fmt.Printf("\n*** >>> [PrivateKeyStr] - %+v", acct.PrivateKeyStr())
 	// fmt.Printf("\n*** >>> [PublicKey] - %+v", acct.PublicKey())
 	// fmt.Printf("\n*** >>> [PublicKeyStr] - %+v", acct.PublicKeyStr())
-	fmt.Printf("\n*** >>> [Address] - %+v\n", acct.Address())
+	// fmt.Printf("\n*** >>> [Address] - %+v\n", acct.Address())
+
+	// pubKeyHash := Base58Decode([]byte(acct.Address()))
+	// fmt.Printf("\n*** >>> [pubKeyHash] - PRE - %+v\n", pubKeyHash)
+	// pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
+	// fmt.Printf("\n*** >>> [pubKeyHash] - POST - %+v\n", pubKeyHash)
+
 }

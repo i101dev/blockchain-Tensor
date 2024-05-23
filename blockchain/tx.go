@@ -29,14 +29,6 @@ func NewTXOutput(value int, address string) *TxOutput {
 	return txo
 }
 
-func (outs TxOutputs) Serialize() []byte {
-	var buffer bytes.Buffer
-	encode := gob.NewEncoder(&buffer)
-	err := encode.Encode(outs)
-	Handle(err)
-	return buffer.Bytes()
-}
-
 func DeserializeOutputs(data []byte) TxOutputs {
 	var outputs TxOutputs
 	decode := gob.NewDecoder(bytes.NewReader(data))
@@ -56,6 +48,14 @@ func (output *TxOutput) Lock(address []byte) {
 	output.PubKeyHash = pubKeyHash
 }
 
-func (out *TxOutput) IsLockedWithKey(pubKeyHash []byte) bool {
-	return bytes.Equal(out.PubKeyHash, pubKeyHash)
+func (output *TxOutput) IsLockedWithKey(pubKeyHash []byte) bool {
+	return bytes.Equal(output.PubKeyHash, pubKeyHash)
+}
+
+func (outputs TxOutputs) Serialize() []byte {
+	var buffer bytes.Buffer
+	encode := gob.NewEncoder(&buffer)
+	err := encode.Encode(outputs)
+	Handle(err)
+	return buffer.Bytes()
 }

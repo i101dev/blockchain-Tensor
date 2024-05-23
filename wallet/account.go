@@ -44,7 +44,7 @@ func NewKeyPair() (ecdsa.PrivateKey, []byte) {
 
 	private, err := ecdsa.GenerateKey(curve, rand.Reader)
 
-	Handle(err)
+	Handle(err, "NewKeyPair")
 
 	public := append(private.PublicKey.X.Bytes(), private.PublicKey.Y.Bytes()...)
 
@@ -65,7 +65,7 @@ func PublicKeyHash(pubKey []byte) []byte {
 
 	_, err := hasher.Write(pubHash[:])
 
-	Handle(err)
+	Handle(err, "PublicKeyHash")
 
 	return hasher.Sum(nil)
 }
