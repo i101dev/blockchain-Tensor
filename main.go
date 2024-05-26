@@ -15,6 +15,7 @@ func init() {
 }
 
 func main() {
+
 	defer os.Exit(0)
 	c := cli.CommandLine{}
 	c.Run()
