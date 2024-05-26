@@ -13,7 +13,7 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/i101dev/blockchain-Tensor/wallet"
+	"github.com/i101dev/blockchain-Tensor/wallet2"
 )
 
 type Transaction struct {
@@ -207,12 +207,12 @@ func CoinbaseTx(to string, data string) *Transaction {
 	return &tx
 }
 
-func NewTransaction(w *wallet.Account, from string, to string, amount int, UTXO *UTXOSet) (*Transaction, bool) {
+func NewTransaction(w *wallet2.Account, from string, to string, amount int, UTXO *UTXOSet) (*Transaction, bool) {
 
 	var inputs []TxInput
 	var outputs []TxOutput
 
-	pubKeyHash := wallet.PublicKeyHash(w.PublicKey)
+	pubKeyHash := wallet2.PublicKeyHash(w.PublicKeyBytes())
 	acc, validOutputs := UTXO.FindSpendableOutputs(pubKeyHash, amount)
 
 	if acc < amount {
@@ -225,7 +225,7 @@ func NewTransaction(w *wallet.Account, from string, to string, amount int, UTXO 
 		Handle(err)
 
 		for _, out := range outs {
-			newInput := TxInput{txId, out, nil, w.PublicKey}
+			newInput := TxInput{txId, out, nil, w.PublicKeyBytes()}
 			inputs = append(inputs, newInput)
 		}
 	}
@@ -238,7 +238,7 @@ func NewTransaction(w *wallet.Account, from string, to string, amount int, UTXO 
 
 	tx := Transaction{nil, inputs, outputs}
 	tx.ID = tx.Hash()
-	UTXO.Blockchain.SignTransaction(&tx, w.PrivateKey)
+	UTXO.Blockchain.SignTransaction(&tx, w.PrivateKey())
 
 	return &tx, true
 }

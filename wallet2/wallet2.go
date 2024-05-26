@@ -1,4 +1,4 @@
-package main
+package wallet2
 
 import (
 	"bytes"
@@ -12,23 +12,23 @@ import (
 	"math/big"
 	"os"
 
-	"github.com/mr-tron/base58"
-	"golang.org/x/crypto/ripemd160"
+	"github.com/btcsuite/btcutil/base58"
 )
 
 const (
 	checkSumLength = 4
 	version        = 0x00
-	walletFile     = "./test/wallets_%s.data"
+	walletFile     = "./tmp/wallets_%s.data"
 )
 
 type Wallet struct {
 	Accounts map[string]*Account
 }
 type Account struct {
-	privateKey ecdsa.PrivateKey
-	publicKey  ecdsa.PublicKey
-	address    string
+	privateKey  ecdsa.PrivateKey
+	publicKey   ecdsa.PublicKey
+	pubKeyBytes []byte
+	address     string
 }
 
 // ----------------------------------------------------------------------------
@@ -40,6 +40,7 @@ func NewAccount() *Account {
 	privateKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	w.privateKey = *privateKey
 	w.publicKey = w.privateKey.PublicKey
+	w.pubKeyBytes = append(w.privateKey.PublicKey.X.Bytes(), privateKey.PublicKey.Y.Bytes()...)
 
 	// 2. Perform SHA-256 hashing on the public key (32 bytes)
 	h2 := sha256.New()
@@ -48,7 +49,7 @@ func NewAccount() *Account {
 	digest2 := h2.Sum(nil)
 
 	// 3. Perform RIPEMD-160 hashing on the result of SHA-256 (20 bytes)
-	h3 := ripemd160.New()
+	h3 := sha256.New()
 	h3.Write(digest2)
 	digest3 := h3.Sum(nil)
 
@@ -80,8 +81,20 @@ func NewAccount() *Account {
 
 	return w
 }
-func (account *Account) PrivateKey() ecdsa.PrivateKey {
-	return account.privateKey
+func PublicKeyHash(pubKey []byte) []byte {
+
+	pubHash := sha256.Sum256(pubKey)
+
+	hasher := sha256.New()
+
+	_, err := hasher.Write(pubHash[:])
+
+	Handle(err, "PublicKeyHash")
+
+	return hasher.Sum(nil)
+}
+func (acct *Account) PrivateKey() ecdsa.PrivateKey {
+	return acct.privateKey
 }
 func (acct *Account) PrivateKeyStr() string {
 	return fmt.Sprintf("%x", acct.privateKey.D.Bytes())
@@ -91,6 +104,9 @@ func (acct *Account) PublicKey() ecdsa.PublicKey {
 }
 func (acct *Account) PublicKeyStr() string {
 	return fmt.Sprintf("%x%x", acct.publicKey.X.Bytes(), acct.publicKey.Y.Bytes())
+}
+func (acct *Account) PublicKeyBytes() []byte {
+	return acct.pubKeyBytes
 }
 func (acct *Account) Address() string {
 	return acct.address
@@ -242,12 +258,17 @@ func (w *Wallet) SaveFile(nodeID string) {
 
 // ----------------------------------------------------------------------------
 // Utility functions
+func Handle(err error, functionName string) {
+	if err != nil {
+		fmt.Printf(`\n*** >>> ERROR @ [%s] - %+v`, functionName, err)
+	}
+}
 func Base58Encode(input []byte) []byte {
 	encode := base58.Encode(input)
 	return []byte(encode)
 }
 func Base58Decode(input []byte) []byte {
-	decode, _ := base58.Decode(string(input[:]))
+	decode := base58.Decode(string(input[:]))
 	return decode
 }
 func CheckSum(payload []byte) []byte {
@@ -269,7 +290,7 @@ func ValidAddress(address string) bool {
 
 // ----------------------------------------------------------------------------
 
-func main() {
+func Test() {
 
 	testFile := "JIMBO"
 
@@ -282,16 +303,13 @@ func main() {
 
 	fmt.Println("\nwallet -", allAddrs)
 
-	// acct := wallet.GetAccount(allAddrs[0])
+	acct := wallet.GetAccount(allAddrs[0])
+
+	fmt.Printf("\n*** >>> [PublicKeyBytes] - %+v", acct.PublicKeyBytes())
 	// fmt.Printf("\n*** >>> [PrivateKey] - %+v", acct.PrivateKey())
 	// fmt.Printf("\n*** >>> [PrivateKeyStr] - %+v", acct.PrivateKeyStr())
 	// fmt.Printf("\n*** >>> [PublicKey] - %+v", acct.PublicKey())
 	// fmt.Printf("\n*** >>> [PublicKeyStr] - %+v", acct.PublicKeyStr())
 	// fmt.Printf("\n*** >>> [Address] - %+v\n", acct.Address())
-
-	// pubKeyHash := Base58Decode([]byte(acct.Address()))
-	// fmt.Printf("\n*** >>> [pubKeyHash] - PRE - %+v\n", pubKeyHash)
-	// pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
-	// fmt.Printf("\n*** >>> [pubKeyHash] - POST - %+v\n", pubKeyHash)
 
 }

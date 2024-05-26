@@ -3,11 +3,11 @@ module github.com/i101dev/blockchain-Tensor
 go 1.22.1
 
 require (
+	github.com/btcsuite/btcutil v1.0.2
 	github.com/dgraph-io/badger v1.6.2
 	github.com/joho/godotenv v1.5.1
 	github.com/mr-tron/base58 v1.2.0
 	github.com/vrecan/death v3.0.1+incompatible
-	golang.org/x/crypto v0.23.0
 )
 
 require (

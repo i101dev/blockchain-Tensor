@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 
-	"github.com/i101dev/blockchain-Tensor/wallet"
+	"github.com/i101dev/blockchain-Tensor/wallet2"
 )
 
 type TxOutput struct {
@@ -38,12 +38,12 @@ func DeserializeOutputs(data []byte) TxOutputs {
 }
 
 func (input *TxInput) UsesKey(pubKeyHash []byte) bool {
-	lockingHash := wallet.PublicKeyHash(input.PubKey)
+	lockingHash := wallet2.PublicKeyHash(input.PubKey)
 	return bytes.Equal(lockingHash, pubKeyHash)
 }
 
 func (output *TxOutput) Lock(address []byte) {
-	pubKeyHash := wallet.Base58Decode(address)
+	pubKeyHash := wallet2.Base58Decode(address)
 	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
 	output.PubKeyHash = pubKeyHash
 }

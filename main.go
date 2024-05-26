@@ -46,4 +46,6 @@ func main() {
 
 	// log.Printf("Server started on Port: %s", port)
 	// log.Fatal(http.ListenAndServe(":"+port, nil))
+
+	// wallet2.Test()
 }
