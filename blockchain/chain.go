@@ -106,76 +106,72 @@ func (chain *Blockchain) AddBlock(data *types.AddBlockReq) {
 	chain.PostBlockToDB(lastHash, newBlock, db)
 }
 
-func (chain *Blockchain) GetBlockByHash(db *badger.DB, hash []byte) *Block {
+func (chain *Blockchain) GetBlockByHash(db *badger.DB, hash []byte) (*Block, error) {
 
 	var block *Block
 
-	db.View(func(txn *badger.Txn) error {
+	err := db.View(func(txn *badger.Txn) error {
 
 		item, err := txn.Get(hash)
-		util.Handle(err, "GetBlockByHash - 1")
+		if err != nil {
+			return fmt.Errorf("HASH NOT FOUND")
+		}
 
 		encodedBlock, err := item.ValueCopy(nil)
-		util.Handle(err, "GetBlockByHash - 2")
+		if err != nil {
+			return fmt.Errorf("FAILED TO ENCODE")
+		}
 
-		block = Deserialize(encodedBlock)
+		block, err = Deserialize(encodedBlock)
 
-		return nil
+		return err
 	})
 
-	return block
+	return block, err
 }
 
 func InitBlockchain(address string, nodeID uint16) *Blockchain {
 
 	path := fmt.Sprintf("%s%d", DB_PATH, nodeID)
 
-	// Ensure the directory exists
+	// Ensure the directory exists ---------------------------
 	if err := os.MkdirAll(path, os.ModePerm); err != nil {
 		log.Panicf(fmt.Sprintf("Error Creating Dir: %s", err))
 	}
-
-	// -------------------------------------------------
 
 	newChain := &Blockchain{
 		Path: path,
 	}
 
+	// -------------------------------------------------------
 	db := OpenDB(newChain)
 	defer newChain.CloseDB()
 
 	var lastHash []byte
-	db.Update(func(txn *badger.Txn) error {
+	db.Update(func(dbTXN *badger.Txn) error {
 
-		if _, err := txn.Get([]byte(LAST_HASH)); err != nil {
+		if _, err := dbTXN.Get([]byte(LAST_HASH)); err == badger.ErrKeyNotFound {
 
 			genesis := Genesis()
 			fmt.Println("Starting new chain - Genesis proved")
 
-			// Using Genesis block has as the [Key]
-			// Set the serialized Genesis block as the [Value]
-			err = txn.Set(genesis.Hash, genesis.Serialize())
+			// Save the serialized Genesis block
+			err = dbTXN.Set(genesis.Hash, genesis.Serialize())
 			util.Handle(err, "InitBlockchain 1")
 
-			// Set the hash from the Genesis block
 			// as the last and most recent hash for the entire chain
-			err = txn.Set([]byte(LAST_HASH), genesis.Hash)
+			err = dbTXN.Set([]byte(LAST_HASH), genesis.Hash)
 			util.Handle(err, "InitBlockchain 2")
 
 			lastHash = genesis.Hash
 
 			return nil
 
-		} else {
-
-			item, err := txn.Get([]byte(LAST_HASH))
-			util.Handle(err, "InitBlockchain 3")
-
-			lastHash, err = item.ValueCopy(nil)
-			util.Handle(err, "InitBlockchain 4")
-
-			return nil
 		}
+
+		lastHash = newChain.GetLastHash(db)
+
+		return nil
 	})
 
 	newChain.LastHash = lastHash
@@ -207,7 +203,10 @@ func (chain *Blockchain) NewIterator() *BlockchainIterator {
 
 func (iter *BlockchainIterator) IterateNext() *Block {
 
-	block := iter.Chain.GetBlockByHash(iter.Database, iter.CurrentHash)
+	block, err := iter.Chain.GetBlockByHash(iter.Database, iter.CurrentHash)
+	if err != nil {
+		fmt.Println(err)
+	}
 
 	iter.CurrentHash = block.PrevHash
 

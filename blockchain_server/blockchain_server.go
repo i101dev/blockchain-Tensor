@@ -35,7 +35,6 @@ func (bcs *BlockchainServer) GetBlockchain(id string) *blockchain.Blockchain {
 	bc, ok := cache[id]
 
 	if !ok {
-		fmt.Println("\nInitializing new chain")
 		// minerWallet := wallet.NewWallet()
 		// log.Printf("\nAddress: %s", minerWallet.BlockchainAddress())
 		bc = blockchain.InitBlockchain("MiningAddress", bcs.port)
@@ -54,6 +53,9 @@ func (bcs *BlockchainServer) GetChainData(w http.ResponseWriter, req *http.Reque
 		bc := bcs.GetBlockchain(CHAIN_ID)
 		db := blockchain.OpenDB(bc)
 
+		fmt.Printf("\n*** >>> GetChainData %s", strings.Repeat("-", 70))
+		fmt.Printf("\nLast Hash %+x", bc.LastHash)
+
 		iterator := &blockchain.BlockchainIterator{
 			CurrentHash: bc.LastHash,
 			Database:    db,
@@ -67,7 +69,7 @@ func (bcs *BlockchainServer) GetChainData(w http.ResponseWriter, req *http.Reque
 
 			fmt.Printf("\n%s", strings.Repeat("=", 80))
 			fmt.Printf("\n*** Block %d %s\n", it, strings.Repeat("-", 67))
-			fmt.Printf("\nPrevious Hash: %x", block.PrevHash)
+			fmt.Printf("\nLast: %x", block.PrevHash)
 			fmt.Printf("\nHash: %x", block.Hash)
 			fmt.Printf("\nData: %s\n", block.Data)
 
@@ -85,7 +87,8 @@ func (bcs *BlockchainServer) GetChainData(w http.ResponseWriter, req *http.Reque
 		bc.CloseDB()
 
 	default:
-		log.Printf("ERROR: Invalid HTTP Method")
+		io.WriteString(w, "ERROR: Invalid HTTP Method")
+		w.WriteHeader(http.StatusBadRequest)
 	}
 }
 
@@ -94,30 +97,42 @@ func (bcs *BlockchainServer) BlockByHash(w http.ResponseWriter, req *http.Reques
 	switch req.Method {
 	case http.MethodGet:
 
+		w.Header().Add("Content-Type", "application-json")
+
 		hash := req.URL.Query().Get("hash")
 		hashBytes, err := hex.DecodeString(hash)
 
 		if err != nil {
-			fmt.Println("\n*** >>> [hex.DecodeString(hash)] - FAIL", err)
+			io.WriteString(w, string(err.Error()[:]))
+			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
 
+		// ----------------------------------------------------------
 		bc := bcs.GetBlockchain(CHAIN_ID)
 		db := blockchain.OpenDB(bc)
 
-		block := bc.GetBlockByHash(db, hashBytes)
+		block, err := bc.GetBlockByHash(db, hashBytes)
 		bc.CloseDB()
 
-		m, err := block.MarshalJSON()
-
 		if err != nil {
-			fmt.Println("\n*** >>> [block.MarshalJSON()] - FAIL", err)
+			io.WriteString(w, string(err.Error()[:]))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 
-		w.Header().Add("Content-Type", "app")
+		// ----------------------------------------------------------
+		m, err := block.MarshalJSON()
+		if err != nil {
+			io.WriteString(w, string(err.Error()[:]))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
 		io.WriteString(w, string(m[:]))
 
 	default:
-		log.Println("ERROR: Invalid HTTP Method")
+		io.WriteString(w, "ERROR: Invalid HTTP Method")
 		w.WriteHeader(http.StatusBadRequest)
 	}
 }
@@ -133,7 +148,7 @@ func (bcs *BlockchainServer) AddBlock(w http.ResponseWriter, req *http.Request) 
 		err := decoder.Decode(&data)
 
 		if err != nil {
-			log.Printf("ERROR decoding block data: %+v", err)
+			io.WriteString(w, string(err.Error()[:]))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -141,7 +156,8 @@ func (bcs *BlockchainServer) AddBlock(w http.ResponseWriter, req *http.Request) 
 		bcs.GetBlockchain(CHAIN_ID).AddBlock(&data)
 
 	default:
-		log.Printf("ERROR: Invalid HTTP Method")
+		io.WriteString(w, "ERROR: Invalid HTTP Method")
+		w.WriteHeader(http.StatusBadRequest)
 	}
 }
 

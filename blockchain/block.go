@@ -39,16 +39,16 @@ func CreateBlock(data string, prevHash []byte) *Block {
 	return block
 }
 
-func Deserialize(data []byte) *Block {
+func Deserialize(data []byte) (*Block, error) {
 
 	var block Block
 	decoder := gob.NewDecoder(bytes.NewReader(data))
 
 	if err := decoder.Decode(&block); err != nil {
-		util.Handle(err, "Deserialize")
+		return nil, fmt.Errorf("Failed to decode and deserialize bytes in to Block")
 	}
 
-	return &block
+	return &block, nil
 }
 
 func (b *Block) Serialize() []byte {
