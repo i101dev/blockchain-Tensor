@@ -77,9 +77,9 @@ func (chain *Blockchain) GetLastHash(db *badger.DB) []byte {
 	return lastHash
 }
 
-func (chain *Blockchain) PostBlockToDB(lastHash []byte, newBlock *Block, db *badger.DB) {
+func (chain *Blockchain) PostBlockToDB(lastHash []byte, newBlock *Block, db *badger.DB) error {
 
-	db.Update(func(txn *badger.Txn) error {
+	return db.Update(func(txn *badger.Txn) error {
 
 		err := txn.Set(newBlock.Hash, newBlock.Serialize())
 		util.Handle(err, "AddBlock 3")
@@ -93,7 +93,7 @@ func (chain *Blockchain) PostBlockToDB(lastHash []byte, newBlock *Block, db *bad
 	})
 }
 
-func (chain *Blockchain) AddBlock(data *types.AddBlockReq) {
+func (chain *Blockchain) AddBlock(data *types.AddBlockReq) error {
 
 	// fmt.Printf("Incoming data: %+v\n", *data.Data)
 
@@ -101,9 +101,12 @@ func (chain *Blockchain) AddBlock(data *types.AddBlockReq) {
 	defer chain.CloseDB()
 
 	lastHash := chain.GetLastHash(db)
-	newBlock := CreateBlock(*data.Data, lastHash)
+	newBlock, err := CreateBlock(*data.Data, lastHash)
+	if err != nil {
+		return err
+	}
 
-	chain.PostBlockToDB(lastHash, newBlock, db)
+	return chain.PostBlockToDB(lastHash, newBlock, db)
 }
 
 func (chain *Blockchain) GetBlockByHash(db *badger.DB, hash []byte) (*Block, error) {
@@ -152,8 +155,7 @@ func InitBlockchain(address string, nodeID uint16) *Blockchain {
 
 		if _, err := dbTXN.Get([]byte(LAST_HASH)); err == badger.ErrKeyNotFound {
 
-			genesis := Genesis()
-			fmt.Println("Starting new chain - Genesis proved")
+			genesis, err := Genesis()
 
 			// Save the serialized Genesis block
 			err = dbTXN.Set(genesis.Hash, genesis.Serialize())

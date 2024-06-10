@@ -74,7 +74,7 @@ func (bcs *BlockchainServer) GetChainData(w http.ResponseWriter, req *http.Reque
 			fmt.Printf("\nData: %s\n", block.Data)
 
 			pow := blockchain.NewProof(block)
-			isValid := pow.Validate()
+			isValid, _ := pow.Validate()
 			fmt.Printf("PoW: %s\n", strconv.FormatBool(isValid))
 			fmt.Println()
 			if len(block.PrevHash) == 0 {
@@ -96,8 +96,6 @@ func (bcs *BlockchainServer) BlockByHash(w http.ResponseWriter, req *http.Reques
 
 	switch req.Method {
 	case http.MethodGet:
-
-		w.Header().Add("Content-Type", "application-json")
 
 		hash := req.URL.Query().Get("hash")
 		hashBytes, err := hex.DecodeString(hash)
@@ -129,6 +127,7 @@ func (bcs *BlockchainServer) BlockByHash(w http.ResponseWriter, req *http.Reques
 			return
 		}
 
+		w.Header().Add("Content-Type", "application-json")
 		io.WriteString(w, string(m[:]))
 
 	default:

@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"math"
 	"math/big"
 )
@@ -17,15 +16,15 @@ type ProofOfWork struct {
 	Target *big.Int
 }
 
-func ToHex(num int64) []byte {
+func ToHex(num int64) ([]byte, error) {
 
 	buff := new(bytes.Buffer)
 
 	if err := binary.Write(buff, binary.BigEndian, num); err != nil {
-		log.Panic(err)
+		return []byte{}, err
 	}
 
-	return buff.Bytes()
+	return buff.Bytes(), nil
 }
 
 func NewProof(b *Block) *ProofOfWork {
@@ -35,43 +34,50 @@ func NewProof(b *Block) *ProofOfWork {
 	return pow
 }
 
-func (pow *ProofOfWork) InitData(nonce int) []byte {
+func (pow *ProofOfWork) InitData(nonce int) ([]byte, error) {
+
+	non, err := ToHex(int64(nonce))
+	if err != nil {
+		return nil, fmt.Errorf("failed to write [nonce] ToHex")
+	}
+
+	diff, err := ToHex(int64(Difficulty))
+	if err != nil {
+		return nil, fmt.Errorf("failed to write [difficulty] ToHex")
+	}
 
 	data := bytes.Join(
 		[][]byte{
 			pow.Block.PrevHash,
 			pow.Block.Data,
-			ToHex(int64(nonce)),
-			ToHex(int64(Difficulty)),
+			non,
+			diff,
+			// ToHex(int64(nonce)),
+			// ToHex(int64(Difficulty)),
 		},
 		[]byte{},
 	)
 
-	return data
+	return data, nil
 }
 
-// //** Simplified equivalent of the above
-// func (pow *ProofOfWork) InitData(nonce int) []byte {
-// 	data := append([]byte{}, pow.Block.PrevHash...)
-// 	data = append(data, pow.Block.Data...)
-// 	data = append(data, ToHex(int64(nonce))...)
-// 	data = append(data, ToHex(int64(Difficulty))...)
-// 	return data
-// }
-
-func (pow *ProofOfWork) Validate() bool {
+func (pow *ProofOfWork) Validate() (bool, error) {
 
 	var intHash big.Int
 
-	data := pow.InitData(pow.Block.Nonce)
+	data, err := pow.InitData(pow.Block.Nonce)
+	if err != nil {
+		return false, err
+	}
+
 	hash := sha256.Sum256(data)
 
 	intHash.SetBytes(hash[:])
 
-	return intHash.Cmp(pow.Target) == -1
+	return intHash.Cmp(pow.Target) == -1, nil
 }
 
-func (pow *ProofOfWork) Run() (int, []byte) {
+func (pow *ProofOfWork) Run() (int, []byte, error) {
 
 	var intHash big.Int
 	var hash [32]byte
@@ -79,10 +85,14 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 	nonce := 0
 
 	for nonce < math.MaxInt64 {
-		data := pow.InitData(nonce)
+
+		data, err := pow.InitData(nonce)
+		if err != nil {
+			return -1, nil, err
+		}
+
 		hash = sha256.Sum256(data)
 
-		fmt.Printf("\r%x", hash)
 		intHash.SetBytes(hash[:])
 
 		if intHash.Cmp(pow.Target) == -1 {
@@ -92,7 +102,5 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 		}
 	}
 
-	fmt.Println()
-
-	return nonce, hash[:]
+	return nonce, hash[:], nil
 }

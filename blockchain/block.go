@@ -17,11 +17,11 @@ type Block struct {
 	Data      []byte
 }
 
-func Genesis() *Block {
+func Genesis() (*Block, error) {
 	return CreateBlock("Genesis", []byte{})
 }
 
-func CreateBlock(data string, prevHash []byte) *Block {
+func CreateBlock(data string, prevHash []byte) (*Block, error) {
 
 	block := &Block{
 		PrevHash: prevHash,
@@ -31,12 +31,12 @@ func CreateBlock(data string, prevHash []byte) *Block {
 	}
 
 	pow := NewProof(block)
-	nonce, hash := pow.Run()
+	nonce, hash, err := pow.Run()
 
 	block.Hash = hash[:]
 	block.Nonce = nonce
 
-	return block
+	return block, err
 }
 
 func Deserialize(data []byte) (*Block, error) {
