@@ -106,20 +106,17 @@ func (chain *Blockchain) AddBlock(data *types.AddBlockReq) {
 	chain.PostBlockToDB(lastHash, newBlock, db)
 }
 
-func (chain *Blockchain) GetBlockByHash(hash []byte) *Block {
-
-	db := OpenDB(chain)
-	defer chain.CloseDB()
+func (chain *Blockchain) GetBlockByHash(db *badger.DB, hash []byte) *Block {
 
 	var block *Block
 
 	db.View(func(txn *badger.Txn) error {
 
 		item, err := txn.Get(hash)
-		util.Handle(err, "IterateNext - 1")
+		util.Handle(err, "GetBlockByHash - 1")
 
 		encodedBlock, err := item.ValueCopy(nil)
-		util.Handle(err, "IterateNext - 2")
+		util.Handle(err, "GetBlockByHash - 2")
 
 		block = Deserialize(encodedBlock)
 
@@ -197,31 +194,20 @@ func DBexists(path string) bool {
 type BlockchainIterator struct {
 	CurrentHash []byte
 	Database    *badger.DB
+	Chain       *Blockchain
 }
 
 func (chain *Blockchain) NewIterator() *BlockchainIterator {
 	return &BlockchainIterator{
 		CurrentHash: chain.LastHash,
 		Database:    chain.Database,
+		Chain:       chain,
 	}
 }
 
 func (iter *BlockchainIterator) IterateNext() *Block {
 
-	var block *Block
-
-	iter.Database.View(func(txn *badger.Txn) error {
-
-		item, err := txn.Get(iter.CurrentHash)
-		util.Handle(err, "IterateNext - 1")
-
-		encodedBlock, err := item.ValueCopy(nil)
-		util.Handle(err, "IterateNext - 2")
-
-		block = Deserialize(encodedBlock)
-
-		return nil
-	})
+	block := iter.Chain.GetBlockByHash(iter.Database, iter.CurrentHash)
 
 	iter.CurrentHash = block.PrevHash
 

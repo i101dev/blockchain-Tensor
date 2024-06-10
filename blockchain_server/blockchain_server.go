@@ -52,8 +52,28 @@ func (bcs *BlockchainServer) GetBlockchain() *blockchain.Blockchain {
 func (bcs *BlockchainServer) GetChainData(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
+
 		w.Header().Add("Content-Type", "application/json")
+
 		bc := bcs.GetBlockchain()
+		db := blockchain.OpenDB(bc)
+
+		iterator := &blockchain.BlockchainIterator{
+			CurrentHash: bc.LastHash,
+			Database:    db,
+			Chain:       bc,
+		}
+
+		for {
+			block := iterator.IterateNext()
+			fmt.Printf("\nPrevious Hash: %x\n", block.PrevHash)
+
+			if len(block.PrevHash) == 0 {
+				break
+			}
+		}
+
+		bc.CloseDB()
 
 		fmt.Printf("\n*** >>> GetChainData %s", strings.Repeat("-", 70))
 		fmt.Printf("\n %+x", bc.LastHash)
@@ -98,7 +118,12 @@ func (bcs *BlockchainServer) BlockByHash(w http.ResponseWriter, req *http.Reques
 			fmt.Println("\n*** >>> [hex.DecodeString(hash)] - FAIL", err)
 		}
 
-		block := bcs.GetBlockchain().GetBlockByHash(hashBytes)
+		bc := bcs.GetBlockchain()
+		db := blockchain.OpenDB(bc)
+
+		block := bcs.GetBlockchain().GetBlockByHash(db, hashBytes)
+		bc.CloseDB()
+
 		m, err := block.MarshalJSON()
 
 		if err != nil {
@@ -120,7 +145,7 @@ func (bcs *BlockchainServer) Run() {
 
 	http.HandleFunc("/addblock", bcs.AddBlock)
 	http.HandleFunc("/blockbyhash", bcs.BlockByHash)
-	http.HandleFunc("/", bcs.GetChainData)
+	http.HandleFunc("/chaindata", bcs.GetChainData)
 
 	hostURL := "0.0.0.0:" + strconv.Itoa(int(bcs.Port()))
 
