@@ -59,33 +59,51 @@ func (chain *Blockchain) CloseDB() {
 	util.Handle(err, "Close 1")
 }
 
-func (chain *Blockchain) GetLastHash(db *badger.DB) []byte {
+func (chain *Blockchain) GetLastHash(db *badger.DB) ([]byte, error) {
 
 	var lastHash []byte
 
-	db.View(func(txn *badger.Txn) error {
+	err := db.View(func(txn *badger.Txn) error {
 
+		// ----------------------------------------------------------
 		item, err := txn.Get([]byte(LAST_HASH))
-		util.Handle(err, "GetLastHash 1")
+		if err != nil {
+			return fmt.Errorf("failed to get last hash from bytes")
+		}
 
+		// ----------------------------------------------------------
 		lastHash, err = item.ValueCopy(nil)
-		util.Handle(err, "GetLastHash 2")
+		if err != nil {
+			return fmt.Errorf("failed item ValueCopy")
+		}
 
 		return nil
 	})
 
-	return lastHash
+	return lastHash, err
 }
 
 func (chain *Blockchain) PostBlockToDB(lastHash []byte, newBlock *Block, db *badger.DB) error {
 
-	return db.Update(func(txn *badger.Txn) error {
+	return db.Update(func(dbTXN *badger.Txn) error {
 
-		err := txn.Set(newBlock.Hash, newBlock.Serialize())
-		util.Handle(err, "AddBlock 3")
+		// ----------------------------------------------------------
+		serializedBlock, err := newBlock.Serialize()
+		if err != nil {
+			return err
+		}
 
-		err = txn.Set([]byte(LAST_HASH), newBlock.Hash)
-		util.Handle(err, "AddBlock 4")
+		// ----------------------------------------------------------
+		err = dbTXN.Set(newBlock.Hash, serializedBlock)
+		if err != nil {
+			return fmt.Errorf("failed to set serialized block in database")
+		}
+
+		// ----------------------------------------------------------
+		err = dbTXN.Set([]byte(LAST_HASH), newBlock.Hash)
+		if err != nil {
+			return fmt.Errorf("failed to set LAST_HASH in database")
+		}
 
 		chain.LastHash = newBlock.Hash
 
@@ -95,12 +113,16 @@ func (chain *Blockchain) PostBlockToDB(lastHash []byte, newBlock *Block, db *bad
 
 func (chain *Blockchain) AddBlock(data *types.AddBlockReq) error {
 
-	// fmt.Printf("Incoming data: %+v\n", *data.Data)
-
 	db := OpenDB(chain)
 	defer chain.CloseDB()
 
-	lastHash := chain.GetLastHash(db)
+	// ----------------------------------------------------------
+	lastHash, err := chain.GetLastHash(db)
+	if err != nil {
+		return err
+	}
+
+	// ----------------------------------------------------------
 	newBlock, err := CreateBlock(*data.Data, lastHash)
 	if err != nil {
 		return err
@@ -115,16 +137,19 @@ func (chain *Blockchain) GetBlockByHash(db *badger.DB, hash []byte) (*Block, err
 
 	err := db.View(func(txn *badger.Txn) error {
 
+		// ----------------------------------------------------------
 		item, err := txn.Get(hash)
 		if err != nil {
 			return fmt.Errorf("HASH NOT FOUND")
 		}
 
+		// ----------------------------------------------------------
 		encodedBlock, err := item.ValueCopy(nil)
 		if err != nil {
 			return fmt.Errorf("FAILED TO ENCODE")
 		}
 
+		// ----------------------------------------------------------
 		block, err = Deserialize(encodedBlock)
 
 		return err
@@ -133,7 +158,7 @@ func (chain *Blockchain) GetBlockByHash(db *badger.DB, hash []byte) (*Block, err
 	return block, err
 }
 
-func InitBlockchain(address string, nodeID uint16) *Blockchain {
+func InitBlockchain(address string, nodeID uint16) (*Blockchain, error) {
 
 	path := fmt.Sprintf("%s%d", DB_PATH, nodeID)
 
@@ -151,34 +176,49 @@ func InitBlockchain(address string, nodeID uint16) *Blockchain {
 	defer newChain.CloseDB()
 
 	var lastHash []byte
-	db.Update(func(dbTXN *badger.Txn) error {
+	err := db.Update(func(dbTXN *badger.Txn) error {
 
 		if _, err := dbTXN.Get([]byte(LAST_HASH)); err == badger.ErrKeyNotFound {
 
+			// ----------------------------------------------------------
 			genesis, err := Genesis()
+			if err != nil {
+				return err
+			}
 
-			// Save the serialized Genesis block
-			err = dbTXN.Set(genesis.Hash, genesis.Serialize())
-			util.Handle(err, "InitBlockchain 1")
+			// ----------------------------------------------------------
+			serializedBlock, err := genesis.Serialize()
+			if err != nil {
+				return err
+			}
 
-			// as the last and most recent hash for the entire chain
+			// ----------------------------------------------------------
+			err = dbTXN.Set(genesis.Hash, serializedBlock)
+			if err != nil {
+				return fmt.Errorf("failed to set serialized block in database")
+			}
+
+			// ----------------------------------------------------------
 			err = dbTXN.Set([]byte(LAST_HASH), genesis.Hash)
-			util.Handle(err, "InitBlockchain 2")
+			if err != nil {
+				return fmt.Errorf("failed to set LAST_HASH in database")
+			}
 
 			lastHash = genesis.Hash
 
 			return nil
-
 		}
 
-		lastHash = newChain.GetLastHash(db)
+		last, err := newChain.GetLastHash(db)
 
-		return nil
+		lastHash = last
+
+		return err
 	})
 
 	newChain.LastHash = lastHash
 
-	return newChain
+	return newChain, err
 }
 
 func DBexists(path string) bool {

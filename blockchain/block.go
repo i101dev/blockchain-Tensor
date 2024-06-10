@@ -5,8 +5,6 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
-
-	"github.com/i101dev/blockchain-Tensor/util"
 )
 
 type Block struct {
@@ -51,16 +49,16 @@ func Deserialize(data []byte) (*Block, error) {
 	return &block, nil
 }
 
-func (b *Block) Serialize() []byte {
+func (b *Block) Serialize() ([]byte, error) {
 
 	var res bytes.Buffer
 	encoder := gob.NewEncoder(&res)
 
 	if err := encoder.Encode(b); err != nil {
-		util.Handle(err, "Serialize")
+		return nil, fmt.Errorf("failed to encode block to bytes")
 	}
 
-	return res.Bytes()
+	return res.Bytes(), nil
 }
 
 func (b *Block) MarshalJSON() ([]byte, error) {
