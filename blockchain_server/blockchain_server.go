@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -29,23 +30,51 @@ func NewBlockchainServer(port uint16) *BlockchainServer {
 	}
 }
 
+func (bcs *BlockchainServer) InitBlockchain(id string) (*blockchain.Blockchain, error) {
+
+	bc, err := blockchain.InitBlockchain("MiningAddress", bcs.port)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize new chain")
+	}
+
+	cache[id] = bc
+
+	return bc, nil
+}
+
 func (bcs *BlockchainServer) GetBlockchain(id string) (*blockchain.Blockchain, error) {
 
 	bc, ok := cache[id]
 
 	if !ok {
-		// minerWallet := wallet.NewWallet()
-		// log.Printf("\nAddress: %s", minerWallet.BlockchainAddress())
-		bc, err := blockchain.InitBlockchain("MiningAddress", bcs.port)
-		cache[id] = bc
-
-		return bc, err
+		return nil, fmt.Errorf("failed to fetch chain data - initialization required")
 	}
 
 	return bc, nil
 }
 
-func (bcs *BlockchainServer) GetChainData(w http.ResponseWriter, req *http.Request) {
+func (bcs *BlockchainServer) InitChain(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+
+		w.Header().Add("Content-Type", "application/json")
+
+		// ----------------------------------------------------------
+		_, err := bcs.InitBlockchain(CHAIN_ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		io.WriteString(w, "Chain initialized")
+
+	default:
+		http.Error(w, "ERROR: Invalid HTTP Method", http.StatusBadRequest)
+	}
+}
+
+func (bcs *BlockchainServer) GetChain(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
 
@@ -103,7 +132,7 @@ func (bcs *BlockchainServer) GetChainData(w http.ResponseWriter, req *http.Reque
 	}
 }
 
-func (bcs *BlockchainServer) BlockByHash(w http.ResponseWriter, req *http.Request) {
+func (bcs *BlockchainServer) GetBlock(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
 		hash := req.URL.Query().Get("hash")
@@ -176,8 +205,9 @@ func (bcs *BlockchainServer) Run() {
 
 	// bcs.GetBlockchain().Run()
 
-	http.HandleFunc("/chaindata", bcs.GetChainData)
-	http.HandleFunc("/blockbyhash", bcs.BlockByHash)
+	http.HandleFunc("/initchain", bcs.InitChain)
+	http.HandleFunc("/getchain", bcs.GetChain)
+	http.HandleFunc("/getblock", bcs.GetBlock)
 	http.HandleFunc("/addblock", bcs.AddBlock)
 
 	hostURL := "0.0.0.0:" + strconv.Itoa(int(bcs.port))
