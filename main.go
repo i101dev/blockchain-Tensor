@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 
 	// "github.com/i101dev/blockchain-Tensor/cli"
@@ -24,10 +25,15 @@ func main() {
 	chain.AddBlock("Block 2")
 	chain.AddBlock("Block 3")
 
-	for i, block := range chain.Blocks() {
+	for i, block := range chain.Blocks {
 		fmt.Printf("\nBlock %d %s", i, strings.Repeat("-", 80))
 		fmt.Printf("\nPrevHash: %+x", block.PrevHash)
 		fmt.Printf("\nHash: %x", block.ThisHash)
 		fmt.Printf("\nData: %s\n", block.Data)
+
+		pow := blockchain.NewProof(block)
+		isValid := pow.Validate()
+		fmt.Printf("PoW: %s\n", strconv.FormatBool(isValid))
+		fmt.Println()
 	}
 }
