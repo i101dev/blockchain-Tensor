@@ -50,11 +50,24 @@ func (pow *ProofOfWork) InitData(nonce int) []byte {
 	return data
 }
 
+// //** Simplified equivalent of the above
+// func (pow *ProofOfWork) InitData(nonce int) []byte {
+// 	data := append([]byte{}, pow.Block.PrevHash...)
+// 	data = append(data, pow.Block.Data...)
+// 	data = append(data, ToHex(int64(nonce))...)
+// 	data = append(data, ToHex(int64(Difficulty))...)
+// 	return data
+// }
+
 func (pow *ProofOfWork) Validate() bool {
+
 	var intHash big.Int
+
 	data := pow.InitData(pow.Block.Nonce)
 	hash := sha256.Sum256(data)
+
 	intHash.SetBytes(hash[:])
+
 	return intHash.Cmp(pow.Target) == -1
 }
 

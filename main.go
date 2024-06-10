@@ -1,13 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"strconv"
-	"strings"
 
 	// "github.com/i101dev/blockchain-Tensor/cli"
-	"github.com/i101dev/blockchain-Tensor/blockchain"
+
 	"github.com/joho/godotenv"
 )
 
@@ -18,22 +15,22 @@ func init() {
 }
 
 func main() {
-	fmt.Println("Yo dawg")
-	chain := blockchain.InitBlockchain()
+	// fmt.Println("Yo dawg")
+	// chain := blockchain.InitBlockChain(os.Getenv("PORT"))
 
-	chain.AddBlock("Block 1")
-	chain.AddBlock("Block 2")
-	chain.AddBlock("Block 3")
+	// chain.AddBlock("Block 1")
+	// chain.AddBlock("Block 2")
+	// chain.AddBlock("Block 3")
 
-	for i, block := range chain.Blocks {
-		fmt.Printf("\nBlock %d %s", i, strings.Repeat("-", 80))
-		fmt.Printf("\nPrevHash: %+x", block.PrevHash)
-		fmt.Printf("\nHash: %x", block.ThisHash)
-		fmt.Printf("\nData: %s\n", block.Data)
+	// for i, block := range chain.Blocks {
+	// 	fmt.Printf("\nBlock %d %s", i, strings.Repeat("-", 80))
+	// 	fmt.Printf("\nPrevHash: %+x", block.PrevHash)
+	// 	fmt.Printf("\nHash: %x", block.ThisHash)
+	// 	fmt.Printf("\nData: %s\n", block.Data)
 
-		pow := blockchain.NewProof(block)
-		isValid := pow.Validate()
-		fmt.Printf("PoW: %s\n", strconv.FormatBool(isValid))
-		fmt.Println()
-	}
+	// 	pow := blockchain.NewProof(block)
+	// 	isValid := pow.Validate()
+	// 	fmt.Printf("PoW: %s\n", strconv.FormatBool(isValid))
+	// 	fmt.Println()
+	// }
 }
