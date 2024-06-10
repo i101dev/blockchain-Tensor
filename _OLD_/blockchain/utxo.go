@@ -191,12 +191,10 @@ func (u UTXOSet) FindUnspentTransactions(pubKeyHash []byte) []TxOutput {
 	var UTXOs []TxOutput
 
 	db := u.Blockchain.Database
-
 	err := db.View(func(txn *badger.Txn) error {
 
 		opts := badger.DefaultIteratorOptions
 		it := txn.NewIterator(opts)
-
 		defer it.Close()
 
 		for it.Seek(utxoPrefix); it.ValidForPrefix(utxoPrefix); it.Next() {
@@ -227,14 +225,12 @@ func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[s
 
 	unspentOuts := make(map[string][]int)
 	accumulated := 0
-	db := u.Blockchain.Database
 
+	db := u.Blockchain.Database
 	err := db.View(func(txn *badger.Txn) error {
 
 		opts := badger.DefaultIteratorOptions
-
 		it := txn.NewIterator(opts)
-
 		defer it.Close()
 
 		for it.Seek(utxoPrefix); it.ValidForPrefix(utxoPrefix); it.Next() {
@@ -251,6 +247,11 @@ func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[s
 
 			for outIdx, out := range outs.Outputs {
 
+				//
+				// log.Println("*** >>> func [IsLockedWithKey]")
+				// log.Println("\n*** >>> output.PubKeyHash,: ", out.PubKeyHash)
+				// log.Println("\n*** >>> pubKeyHash: ", pubKeyHash)
+				//
 				if out.IsLockedWithKey(pubKeyHash) && accumulated < amount {
 					accumulated += out.Value
 					unspentOuts[txID] = append(unspentOuts[txID], outIdx)

@@ -217,6 +217,8 @@ func NewTransaction(w *wallet2.Account, from string, to string, amount int, UTXO
 
 	if acc < amount {
 		log.Println("*** >>> Error: insufficient funds")
+		// log.Println("*** >>> Available balance: ", acc)
+		// log.Println("*** >>> pubKeyHash: ", pubKeyHash)
 		return &Transaction{}, false
 	}
 

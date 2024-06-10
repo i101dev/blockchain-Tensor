@@ -28,7 +28,8 @@ type Account struct {
 	privateKey  ecdsa.PrivateKey
 	publicKey   ecdsa.PublicKey
 	pubKeyBytes []byte
-	address     string
+	addrBytes   []byte
+	addrStr     string
 }
 
 // ----------------------------------------------------------------------------
@@ -36,16 +37,16 @@ type Account struct {
 func NewAccount() *Account {
 
 	// 1. Creating ECDSA private key (32 bytes) & public key (64 byte)
-	w := new(Account)
+	acct := new(Account)
 	privateKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	w.privateKey = *privateKey
-	w.publicKey = w.privateKey.PublicKey
-	w.pubKeyBytes = append(w.privateKey.PublicKey.X.Bytes(), privateKey.PublicKey.Y.Bytes()...)
+	acct.privateKey = *privateKey
+	acct.publicKey = acct.privateKey.PublicKey
+	acct.pubKeyBytes = append(acct.privateKey.PublicKey.X.Bytes(), privateKey.PublicKey.Y.Bytes()...)
 
 	// 2. Perform SHA-256 hashing on the public key (32 bytes)
 	h2 := sha256.New()
-	h2.Write(w.publicKey.X.Bytes())
-	h2.Write(w.publicKey.Y.Bytes())
+	h2.Write(acct.publicKey.X.Bytes())
+	h2.Write(acct.publicKey.Y.Bytes())
 	digest2 := h2.Sum(nil)
 
 	// 3. Perform RIPEMD-160 hashing on the result of SHA-256 (20 bytes)
@@ -77,9 +78,10 @@ func NewAccount() *Account {
 	copy(dc8[21:], checkSum[:])
 
 	// 9. Convert the result from a byte in to base58
-	w.address = base58.Encode(dc8)
+	acct.addrStr = base58.Encode(dc8)
+	acct.addrBytes = acct.GetAddress()
 
-	return w
+	return acct
 }
 func PublicKeyHash(pubKey []byte) []byte {
 
@@ -109,7 +111,19 @@ func (acct *Account) PublicKeyBytes() []byte {
 	return acct.pubKeyBytes
 }
 func (acct *Account) Address() string {
-	return acct.address
+	return acct.addrStr
+}
+func (acct Account) GetAddress() []byte {
+
+	pubKeyHash := PublicKeyHash(acct.pubKeyBytes)
+
+	versionedHash := append([]byte{version}, pubKeyHash...)
+	checkSum := CheckSum(versionedHash)
+
+	fullHash := append(versionedHash, checkSum...)
+	addrBytes := Base58Encode(fullHash)
+
+	return addrBytes
 }
 func (acct *Account) GobEncode() ([]byte, error) {
 
@@ -131,7 +145,7 @@ func (acct *Account) GobEncode() ([]byte, error) {
 		return nil, err
 	}
 
-	err = encoder.Encode(acct.address)
+	err = encoder.Encode(acct.addrStr)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +175,7 @@ func (acct *Account) GobDecode(data []byte) error {
 		return err
 	}
 
-	err = decoder.Decode(&acct.address)
+	err = decoder.Decode(&acct.addrStr)
 	if err != nil {
 		return err
 	}
@@ -209,6 +223,7 @@ func (w *Wallet) AddAccount() string {
 func (w *Wallet) GetAccount(address string) *Account {
 	return w.Accounts[address]
 }
+
 func (w *Wallet) GetAllAddresses() []string {
 	var addresses []string
 	for address := range w.Accounts {

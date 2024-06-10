@@ -10,7 +10,6 @@ import (
 
 	"github.com/i101dev/blockchain-Tensor/blockchain"
 	"github.com/i101dev/blockchain-Tensor/network"
-	"github.com/i101dev/blockchain-Tensor/wallet"
 	"github.com/i101dev/blockchain-Tensor/wallet2"
 )
 
@@ -209,7 +208,7 @@ func GetBalance(address string, nodeID string) int {
 
 	balance := 0
 
-	pubKeyHash := wallet.Base58Decode([]byte(address))
+	pubKeyHash := wallet2.Base58Decode([]byte(address))
 	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
 
 	UTXOs := UTXOset.FindUnspentTransactions(pubKeyHash)
@@ -282,6 +281,13 @@ func CreateWallet(nodeID string) string {
 func ListAddresses(nodeID string) []string {
 	wallets, _ := wallet2.LoadWallet(nodeID)
 	fmt.Println("\nAddresses -", wallets.GetAllAddresses())
+	//
+	// addr0 := wallets.GetAllAddresses()[0]
+	// getAddress := wallets.Accounts[addr0].GetAddress()
+	// //
+	// fmt.Println("\n*** >>> [addr0] - ", addr0)
+	// fmt.Println("\n*** >>> [getAddress] - ", getAddress)
+	//
 	return wallets.GetAllAddresses()
 }
 
