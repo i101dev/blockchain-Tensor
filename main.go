@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"log"
-	"os"
+	"strings"
 
-	"github.com/i101dev/blockchain-Tensor/cli"
+	// "github.com/i101dev/blockchain-Tensor/cli"
+	"github.com/i101dev/blockchain-Tensor/blockchain"
 	"github.com/joho/godotenv"
 )
 
@@ -15,38 +17,17 @@ func init() {
 }
 
 func main() {
+	fmt.Println("Yo dawg")
+	chain := blockchain.InitBlockchain()
 
-	defer os.Exit(0)
-	c := cli.CommandLine{}
-	c.Run()
+	chain.AddBlock("Block 1")
+	chain.AddBlock("Block 2")
+	chain.AddBlock("Block 3")
 
-	// log.SetFlags(0)
-
-	// http.HandleFunc("/createblockchain", api.HandleCreateBlockchain)
-	// http.HandleFunc("/getbalance", api.HandleGetBalance)
-	// http.HandleFunc("/send", api.HandleSend)
-	// http.HandleFunc("/startnode", api.HandleStartNode)
-	// http.HandleFunc("/listaddresses", api.HandleListAddresses)
-	// http.HandleFunc("/createwallet", api.HandleCreateWallet)
-	// http.HandleFunc("/reindexutxo", api.HandleReindexUTXO)
-	// http.HandleFunc("/printchain", api.HandlePrintChain)
-	// http.HandleFunc("/listnodes", api.HandleListNodes)
-
-	// nodeID := os.Getenv("NODE_ID")
-	// port := os.Getenv("PORT")
-
-	// if nodeID == "" {
-	// 	log.Fatal("*** >>> NODE_ID env is not set <<< ***")
-	// 	runtime.Goexit()
-	// }
-
-	// if port == "" {
-	// 	log.Fatal("*** >>> PORT env is not set <<< ***")
-	// 	runtime.Goexit()
-	// }
-
-	// log.Printf("Server started on Port: %s", port)
-	// log.Fatal(http.ListenAndServe(":"+port, nil))
-
-	// wallet2.Test()
+	for i, block := range chain.Blocks() {
+		fmt.Printf("\nBlock %d %s", i, strings.Repeat("-", 80))
+		fmt.Printf("\nPrevHash: %+x", block.PrevHash)
+		fmt.Printf("\nHash: %x", block.ThisHash)
+		fmt.Printf("\nData: %s\n", block.Data)
+	}
 }
