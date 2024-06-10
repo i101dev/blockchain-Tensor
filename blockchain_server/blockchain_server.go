@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -55,8 +54,7 @@ func (bcs *BlockchainServer) GetChainData(w http.ResponseWriter, req *http.Reque
 		// ----------------------------------------------------------
 		bc, err := bcs.GetBlockchain(CHAIN_ID)
 		if err != nil {
-			io.WriteString(w, string(err.Error()[:]))
-			w.WriteHeader(http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -77,7 +75,11 @@ func (bcs *BlockchainServer) GetChainData(w http.ResponseWriter, req *http.Reque
 		it := 0
 		for {
 
-			block := iterator.IterateNext()
+			block, err := iterator.IterateNext()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				break
+			}
 
 			fmt.Printf("\n%s", strings.Repeat("=", 80))
 			fmt.Printf("\n*** Block %d %s\n", it, strings.Repeat("-", 67))
@@ -97,97 +99,76 @@ func (bcs *BlockchainServer) GetChainData(w http.ResponseWriter, req *http.Reque
 		}
 
 	default:
-		io.WriteString(w, "ERROR: Invalid HTTP Method")
-		w.WriteHeader(http.StatusBadRequest)
+		http.Error(w, "ERROR: Invalid HTTP Method", http.StatusBadRequest)
 	}
 }
 
 func (bcs *BlockchainServer) BlockByHash(w http.ResponseWriter, req *http.Request) {
-
 	switch req.Method {
 	case http.MethodGet:
-
 		hash := req.URL.Query().Get("hash")
 
-		// ----------------------------------------------------------
 		hashBytes, err := hex.DecodeString(hash)
 		if err != nil {
-			io.WriteString(w, string(err.Error()[:]))
-			w.WriteHeader(http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		// ----------------------------------------------------------
 		bc, err := bcs.GetBlockchain(CHAIN_ID)
 		if err != nil {
-			io.WriteString(w, string(err.Error()[:]))
-			w.WriteHeader(http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		db := blockchain.OpenDB(bc)
 		defer bc.CloseDB()
 
-		// ----------------------------------------------------------
 		block, err := bc.GetBlockByHash(db, hashBytes)
 		if err != nil {
-			io.WriteString(w, string(err.Error()[:]))
-			w.WriteHeader(http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// ----------------------------------------------------------
 		m, err := block.MarshalJSON()
 		if err != nil {
-			io.WriteString(w, string(err.Error()[:]))
-			w.WriteHeader(http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		w.Header().Add("Content-Type", "application-json")
-		io.WriteString(w, string(m[:]))
+		w.Header().Add("Content-Type", "application/json")
+		w.Write(m)
 
 	default:
-		io.WriteString(w, "ERROR: Invalid HTTP Method")
-		w.WriteHeader(http.StatusBadRequest)
+		http.Error(w, "ERROR: Invalid HTTP Method", http.StatusBadRequest)
 	}
 }
 
 func (bcs *BlockchainServer) AddBlock(w http.ResponseWriter, req *http.Request) {
-
 	switch req.Method {
 	case http.MethodPost:
-
 		var data types.AddBlockReq
 		decoder := json.NewDecoder(req.Body)
 
-		// ----------------------------------------------------------
 		err := decoder.Decode(&data)
 		if err != nil {
-			io.WriteString(w, string(err.Error()[:]))
-			w.WriteHeader(http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// ----------------------------------------------------------
 		chain, err := bcs.GetBlockchain(CHAIN_ID)
 		if err != nil {
-			io.WriteString(w, string(err.Error()[:]))
-			w.WriteHeader(http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// ----------------------------------------------------------
 		err = chain.AddBlock(&data)
 		if err != nil {
-			io.WriteString(w, string(err.Error()[:]))
-			w.WriteHeader(http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 	default:
-		io.WriteString(w, "ERROR: Invalid HTTP Method")
-		w.WriteHeader(http.StatusBadRequest)
+		http.Error(w, "ERROR: Invalid HTTP Method", http.StatusBadRequest)
 	}
 }
 

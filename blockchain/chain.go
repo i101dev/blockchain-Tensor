@@ -243,14 +243,14 @@ func (chain *Blockchain) NewIterator() *BlockchainIterator {
 	}
 }
 
-func (iter *BlockchainIterator) IterateNext() *Block {
+func (iter *BlockchainIterator) IterateNext() (*Block, error) {
 
 	block, err := iter.Chain.GetBlockByHash(iter.Database, iter.CurrentHash)
 	if err != nil {
-		fmt.Println(err)
+		return nil, err
 	}
 
 	iter.CurrentHash = block.PrevHash
 
-	return block
+	return block, nil
 }
