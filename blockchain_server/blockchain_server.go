@@ -14,7 +14,11 @@ import (
 	"github.com/i101dev/blockchain-Tensor/types"
 )
 
-var cache map[string]*blockchain.Blockchain = make(map[string]*blockchain.Blockchain)
+var (
+	cache map[string]*blockchain.Blockchain = make(map[string]*blockchain.Blockchain)
+
+	CHAIN_ID = "blockchain"
+)
 
 type BlockchainServer struct {
 	port uint16
@@ -26,24 +30,16 @@ func NewBlockchainServer(port uint16) *BlockchainServer {
 	}
 }
 
-func (bcs *BlockchainServer) Port() uint16 {
-	return bcs.port
-}
+func (bcs *BlockchainServer) GetBlockchain(id string) *blockchain.Blockchain {
 
-func (bcs *BlockchainServer) GetBlockchain() *blockchain.Blockchain {
-
-	ID := "blockchain"
-
-	bc, ok := cache[ID]
+	bc, ok := cache[id]
 
 	if !ok {
 		fmt.Println("\nInitializing new chain")
 		// minerWallet := wallet.NewWallet()
-		bc = blockchain.InitBlockchain("MiningAddress", bcs.Port())
-		cache[ID] = bc
 		// log.Printf("\nAddress: %s", minerWallet.BlockchainAddress())
-	} else {
-		// fmt.Println("\nPulling existing chain")
+		bc = blockchain.InitBlockchain("MiningAddress", bcs.port)
+		cache[id] = bc
 	}
 
 	return bc
@@ -55,7 +51,7 @@ func (bcs *BlockchainServer) GetChainData(w http.ResponseWriter, req *http.Reque
 
 		w.Header().Add("Content-Type", "application/json")
 
-		bc := bcs.GetBlockchain()
+		bc := bcs.GetBlockchain(CHAIN_ID)
 		db := blockchain.OpenDB(bc)
 
 		iterator := &blockchain.BlockchainIterator{
@@ -64,42 +60,29 @@ func (bcs *BlockchainServer) GetChainData(w http.ResponseWriter, req *http.Reque
 			Chain:       bc,
 		}
 
+		it := 0
 		for {
-			block := iterator.IterateNext()
-			fmt.Printf("\nPrevious Hash: %x\n", block.PrevHash)
 
+			block := iterator.IterateNext()
+
+			fmt.Printf("\n%s", strings.Repeat("=", 80))
+			fmt.Printf("\n*** Block %d %s\n", it, strings.Repeat("-", 67))
+			fmt.Printf("\nPrevious Hash: %x", block.PrevHash)
+			fmt.Printf("\nHash: %x", block.Hash)
+			fmt.Printf("\nData: %s\n", block.Data)
+
+			pow := blockchain.NewProof(block)
+			isValid := pow.Validate()
+			fmt.Printf("PoW: %s\n", strconv.FormatBool(isValid))
+			fmt.Println()
 			if len(block.PrevHash) == 0 {
 				break
 			}
+
+			it++
 		}
 
 		bc.CloseDB()
-
-		fmt.Printf("\n*** >>> GetChainData %s", strings.Repeat("-", 70))
-		fmt.Printf("\n %+x", bc.LastHash)
-	default:
-		log.Printf("ERROR: Invalid HTTP Method")
-	}
-
-}
-
-func (bcs *BlockchainServer) AddBlock(w http.ResponseWriter, req *http.Request) {
-
-	switch req.Method {
-	case http.MethodPost:
-
-		var data types.AddBlockReq
-
-		decoder := json.NewDecoder(req.Body)
-		err := decoder.Decode(&data)
-
-		if err != nil {
-			log.Printf("ERROR decoding block data: %+v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		bcs.GetBlockchain().AddBlock(&data)
 
 	default:
 		log.Printf("ERROR: Invalid HTTP Method")
@@ -118,10 +101,10 @@ func (bcs *BlockchainServer) BlockByHash(w http.ResponseWriter, req *http.Reques
 			fmt.Println("\n*** >>> [hex.DecodeString(hash)] - FAIL", err)
 		}
 
-		bc := bcs.GetBlockchain()
+		bc := bcs.GetBlockchain(CHAIN_ID)
 		db := blockchain.OpenDB(bc)
 
-		block := bcs.GetBlockchain().GetBlockByHash(db, hashBytes)
+		block := bc.GetBlockByHash(db, hashBytes)
 		bc.CloseDB()
 
 		m, err := block.MarshalJSON()
@@ -139,15 +122,38 @@ func (bcs *BlockchainServer) BlockByHash(w http.ResponseWriter, req *http.Reques
 	}
 }
 
+func (bcs *BlockchainServer) AddBlock(w http.ResponseWriter, req *http.Request) {
+
+	switch req.Method {
+	case http.MethodPost:
+
+		var data types.AddBlockReq
+
+		decoder := json.NewDecoder(req.Body)
+		err := decoder.Decode(&data)
+
+		if err != nil {
+			log.Printf("ERROR decoding block data: %+v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		bcs.GetBlockchain(CHAIN_ID).AddBlock(&data)
+
+	default:
+		log.Printf("ERROR: Invalid HTTP Method")
+	}
+}
+
 func (bcs *BlockchainServer) Run() {
 
 	// bcs.GetBlockchain().Run()
 
-	http.HandleFunc("/addblock", bcs.AddBlock)
-	http.HandleFunc("/blockbyhash", bcs.BlockByHash)
 	http.HandleFunc("/chaindata", bcs.GetChainData)
+	http.HandleFunc("/blockbyhash", bcs.BlockByHash)
+	http.HandleFunc("/addblock", bcs.AddBlock)
 
-	hostURL := "0.0.0.0:" + strconv.Itoa(int(bcs.Port()))
+	hostURL := "0.0.0.0:" + strconv.Itoa(int(bcs.port))
 
 	fmt.Println("Blockchain Server is live @:", hostURL)
 	log.Fatal(http.ListenAndServe(hostURL, nil))

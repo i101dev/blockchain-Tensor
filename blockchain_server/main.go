@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"os"
 )
 
 func init() {
@@ -10,6 +11,8 @@ func init() {
 }
 
 func main() {
+
+	defer os.Exit(0)
 
 	port := flag.Uint("port", 5000, "TCP Port Number for Blockchain Server")
 	flag.Parse()
