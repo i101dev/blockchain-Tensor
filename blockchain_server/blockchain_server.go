@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/i101dev/blockchain-Tensor/blockchain"
 	"github.com/i101dev/blockchain-Tensor/types"
@@ -16,7 +15,8 @@ import (
 var (
 	cache map[string]*blockchain.Blockchain = make(map[string]*blockchain.Blockchain)
 
-	CHAIN_ID = "blockchain"
+	CHAIN_ID       = "blockchain"
+	ORIGIN_ADDRESS = "OriginAddress"
 )
 
 type BlockchainServer struct {
@@ -31,7 +31,7 @@ func NewBlockchainServer(port uint16) *BlockchainServer {
 
 func (bcs *BlockchainServer) InitBlockchain() error {
 
-	bc, err := blockchain.InitBlockchain("MiningAddress", bcs.port)
+	bc, err := blockchain.LoadBlockchain(ORIGIN_ADDRESS, bcs.port)
 
 	if err != nil {
 		return fmt.Errorf("failed to initialize new chain")
@@ -53,27 +53,7 @@ func (bcs *BlockchainServer) GetBlockchain() (*blockchain.Blockchain, error) {
 	return bc, nil
 }
 
-// func (bcs *BlockchainServer) InitChain(w http.ResponseWriter, req *http.Request) {
-// 	switch req.Method {
-// 	case http.MethodGet:
-
-// 		w.Header().Add("Content-Type", "application/json")
-
-// 		// ----------------------------------------------------------
-// 		_, err := bcs.InitBlockchain()
-// 		if err != nil {
-// 			http.Error(w, err.Error(), http.StatusInternalServerError)
-// 			return
-// 		}
-
-// 		io.WriteString(w, "Chain initialized")
-
-// 	default:
-// 		http.Error(w, "ERROR: Invalid HTTP Method", http.StatusBadRequest)
-// 	}
-// }
-
-func (bcs *BlockchainServer) GetChain(w http.ResponseWriter, req *http.Request) {
+func (bcs *BlockchainServer) PrintChain(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
 
@@ -90,9 +70,6 @@ func (bcs *BlockchainServer) GetChain(w http.ResponseWriter, req *http.Request) 
 		defer bc.CloseDB()
 
 		// ----------------------------------------------------------
-		fmt.Printf("\n### GetChainData\n")
-		// fmt.Printf("\nLast Hash %+x", bc.LastHash)
-
 		iterator := &blockchain.BlockchainIterator{
 			CurrentHash: bc.LastHash,
 			Database:    db,
@@ -100,31 +77,40 @@ func (bcs *BlockchainServer) GetChain(w http.ResponseWriter, req *http.Request) 
 		}
 
 		// ----------------------------------------------------------
+		var allBlocks []byte
+		allBlocks = append(allBlocks, '[') // Start of JSON array
+
 		it := 0
 		for {
-
 			block, err := iterator.IterateNext()
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
 				break
 			}
 
-			fmt.Printf("\n%s", strings.Repeat("=", 80))
-			fmt.Printf("\n*** Block %d %s\n", it, strings.Repeat("-", 67))
-			fmt.Printf("\nLast: %x", block.PrevHash)
-			fmt.Printf("\nHash: %x", block.Hash)
-			fmt.Printf("\nData: %s\n", "")
+			m, err := block.MarshalJSON()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 
-			pow := blockchain.NewProof(block)
-			isValid, _ := pow.Validate()
-			fmt.Printf("PoW: %s\n", strconv.FormatBool(isValid))
-			fmt.Println()
+			if it > 0 {
+				allBlocks = append(allBlocks, ',') // Add comma between JSON objects
+			}
+			allBlocks = append(allBlocks, m...)
+
+			it++
+
 			if len(block.PrevHash) == 0 {
 				break
 			}
-
-			it++
 		}
+
+		allBlocks = append(allBlocks, ']') // End of JSON array
+
+		// ----------------------------------------------------------
+
+		w.Header().Add("Content-Type", "application/json")
+		w.Write(allBlocks)
 
 	default:
 		http.Error(w, "ERROR: Invalid HTTP Method", http.StatusBadRequest)
@@ -136,12 +122,14 @@ func (bcs *BlockchainServer) GetBlock(w http.ResponseWriter, req *http.Request) 
 	case http.MethodGet:
 		hash := req.URL.Query().Get("hash")
 
+		// ----------------------------------------------------------
 		hashBytes, err := hex.DecodeString(hash)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
+		// ----------------------------------------------------------
 		bc, err := bcs.GetBlockchain()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -151,12 +139,14 @@ func (bcs *BlockchainServer) GetBlock(w http.ResponseWriter, req *http.Request) 
 		db := blockchain.OpenDB(bc)
 		defer bc.CloseDB()
 
+		// ----------------------------------------------------------
 		block, err := bc.GetBlockByHash(db, hashBytes)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
+		// ----------------------------------------------------------
 		m, err := block.MarshalJSON()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -171,29 +161,99 @@ func (bcs *BlockchainServer) GetBlock(w http.ResponseWriter, req *http.Request) 
 	}
 }
 
-func (bcs *BlockchainServer) AddBlock(w http.ResponseWriter, req *http.Request) {
+func (bcs *BlockchainServer) AddTXN(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodPost:
-		var data types.AddBlockReq
+
+		var txn types.NewTxnReq
 		decoder := json.NewDecoder(req.Body)
 
-		err := decoder.Decode(&data)
+		// ----------------------------------------------------------
+		err := decoder.Decode(&txn)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
+		// ----------------------------------------------------------
 		chain, err := bcs.GetBlockchain()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		err = chain.AddBlock(&data)
+		// ----------------------------------------------------------
+		// newTxn, err := blockchain.NewTransaction(txn.From, txn.To, txn.Amount, chain)
+		newTxn, err := blockchain.DummyTransaction(ORIGIN_ADDRESS, txn.To, txn.Amount, chain)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		// ----------------------------------------------------------
+		err = chain.AddBlock([]*blockchain.Transaction{newTxn})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// ----------------------------------------------------------
+		m, err := newTxn.MarshalJSON()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Add("Content-Type", "application/json")
+		w.Write(m)
+
+	default:
+		http.Error(w, "ERROR: Invalid HTTP Method", http.StatusBadRequest)
+	}
+}
+
+func (bcs *BlockchainServer) GetUTXOset(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+
+		w.Header().Add("Content-Type", "application/json")
+
+		address := req.URL.Query().Get("address")
+
+		// -----------------------------------------------------------
+		chain, err := bcs.GetBlockchain()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		db := blockchain.OpenDB(chain)
+		defer chain.CloseDB()
+
+		// -----------------------------------------------------------
+		utxoset, err := chain.GetUnspentOutputs(db, address)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// -----------------------------------------------------------
+		var UTXO []byte
+		for _, output := range utxoset {
+
+			o, err := output.MarshalJSON()
+
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			UTXO = append(UTXO, o...)
+		}
+
+		// -----------------------------------------------------------
+		w.Header().Add("Content-Type", "application/json")
+		w.Write(UTXO)
 
 	default:
 		http.Error(w, "ERROR: Invalid HTTP Method", http.StatusBadRequest)
@@ -207,9 +267,11 @@ func (bcs *BlockchainServer) Run() {
 	}
 
 	// http.HandleFunc("/initchain", bcs.InitChain)
-	http.HandleFunc("/getchain", bcs.GetChain)
+	http.HandleFunc("/printchain", bcs.PrintChain)
 	http.HandleFunc("/getblock", bcs.GetBlock)
-	http.HandleFunc("/addblock", bcs.AddBlock)
+	http.HandleFunc("/utxoset", bcs.GetUTXOset)
+
+	http.HandleFunc("/addtxn", bcs.AddTXN)
 
 	hostURL := "0.0.0.0:" + strconv.Itoa(int(bcs.port))
 
