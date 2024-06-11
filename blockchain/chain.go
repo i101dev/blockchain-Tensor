@@ -101,22 +101,40 @@ func (chain *Blockchain) PostBlockToDB(lastHash []byte, newBlock *Block, db *bad
 
 func (chain *Blockchain) AddBlock(txs []*Transaction) error {
 
-	// db := OpenDB(chain)
-	// defer chain.CloseDB()
-
-	// ----------------------------------------------------------
 	lastHash, err := chain.GetLastHash(chain.Database)
 	if err != nil {
 		return err
 	}
 
-	// ----------------------------------------------------------
 	newBlock, err := CreateBlock(txs, lastHash)
 	if err != nil {
 		return err
 	}
 
 	return chain.PostBlockToDB(lastHash, newBlock, chain.Database)
+}
+
+func (chain *Blockchain) GetAllBlocks() []*Block {
+
+	iter := chain.NewIterator()
+
+	var allBlocks []*Block
+
+	for {
+
+		block, err := iter.IterateNext()
+		if err != nil {
+			break
+		}
+
+		allBlocks = append(allBlocks, block)
+
+		if len(block.PrevHash) == 0 {
+			break
+		}
+	}
+
+	return allBlocks
 }
 
 func (chain *Blockchain) GetBlockByHash(db *badger.DB, hash []byte) (*Block, error) {
@@ -148,16 +166,14 @@ func (chain *Blockchain) GetBlockByHash(db *badger.DB, hash []byte) (*Block, err
 
 func (chain *Blockchain) GetUnspentOutputs(db *badger.DB, address string) ([]*TxOutput, error) {
 
-	var err error = nil
 	var utxoSet []*TxOutput
 
 	iter := chain.NewIterator()
 
 	for {
 
-		block, iterError := iter.IterateNext()
-
-		if iterError != nil {
+		block, err := iter.IterateNext()
+		if err != nil {
 			break
 		}
 
@@ -172,7 +188,7 @@ func (chain *Blockchain) GetUnspentOutputs(db *badger.DB, address string) ([]*Tx
 		}
 	}
 
-	return utxoSet, err
+	return utxoSet, nil
 }
 
 func OpenDB(chain *Blockchain) *badger.DB {
@@ -278,7 +294,6 @@ func (chain *Blockchain) FindUnspentTransactions(address string) []Transaction {
 		block, _ := iter.IterateNext()
 
 		if block == nil {
-			fmt.Println("\n*** >>> NOOOOOOOOOOOOOO BLOCK")
 			break
 		}
 
@@ -317,9 +332,10 @@ func (chain *Blockchain) FindUnspentTransactions(address string) []Transaction {
 }
 
 func (chain *Blockchain) FindUTXO(address string) []TxOutput {
-	var UTXOs []TxOutput
+
 	unspentTransactions := chain.FindUnspentTransactions(address)
 
+	var UTXOs []TxOutput
 	for _, tx := range unspentTransactions {
 		for _, out := range tx.Outputs {
 			if out.CanBeUnlocked(address) {
@@ -327,26 +343,29 @@ func (chain *Blockchain) FindUTXO(address string) []TxOutput {
 			}
 		}
 	}
+
 	return UTXOs
 }
 
 func (chain *Blockchain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
 
+	accumulated := 0
 	unspentOuts := make(map[string][]int)
 	unspentTxs := chain.FindUnspentTransactions(address)
-	accumulated := 0
 
-Work:
 	for _, tx := range unspentTxs {
+
 		txID := hex.EncodeToString(tx.ID)
 
 		for outIdx, out := range tx.Outputs {
+
 			if out.CanBeUnlocked(address) && accumulated < amount {
+
 				accumulated += out.Value
 				unspentOuts[txID] = append(unspentOuts[txID], outIdx)
 
 				if accumulated >= amount {
-					break Work
+					return accumulated, unspentOuts
 				}
 			}
 		}
@@ -362,6 +381,21 @@ type BlockchainIterator struct {
 	Chain       *Blockchain
 }
 
+func (iter *BlockchainIterator) Print() {
+
+	block, err := iter.IterateNext()
+	if err != nil {
+		return
+	}
+
+	fmt.Printf("Current Hash: %x\n", block.Hash)
+	fmt.Printf("Previous Hash: %x\n", block.PrevHash)
+	fmt.Println("Transactions:")
+	for _, tx := range block.Transactions {
+		tx.Print()
+	}
+}
+
 func (chain *Blockchain) NewIterator() *BlockchainIterator {
 	return &BlockchainIterator{
 		CurrentHash: chain.LastHash,
@@ -371,24 +405,36 @@ func (chain *Blockchain) NewIterator() *BlockchainIterator {
 }
 
 func (iter *BlockchainIterator) IterateNext() (*Block, error) {
-
 	var block *Block
 
 	err := iter.Database.View(func(txn *badger.Txn) error {
-
 		item, err := txn.Get(iter.CurrentHash)
-		util.Handle(err, "IterateNext 1")
+		if err != nil {
+			return fmt.Errorf(err.Error())
+		}
 
 		encodedBlock, err := item.ValueCopy(nil)
-		util.Handle(err, "IterateNext 2")
+		if err != nil {
+			return fmt.Errorf(err.Error())
+		}
 
 		block, err = Deserialize(encodedBlock)
-		util.Handle(err, "IterateNext 3")
+		if err != nil {
+			return err
+		}
 
 		return nil
 	})
 
+	if err != nil {
+		return nil, err
+	}
+
+	if block == nil {
+		return nil, fmt.Errorf("retrieved block is nil")
+	}
+
 	iter.CurrentHash = block.PrevHash
 
-	return block, err
+	return block, nil
 }

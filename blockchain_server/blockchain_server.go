@@ -66,52 +66,21 @@ func (bcs *BlockchainServer) PrintChain(w http.ResponseWriter, req *http.Request
 			return
 		}
 
-		db := blockchain.OpenDB(bc)
+		blockchain.OpenDB(bc)
 		defer bc.CloseDB()
 
+		allBlocks := bc.GetAllBlocks()
+
 		// ----------------------------------------------------------
-		iterator := &blockchain.BlockchainIterator{
-			CurrentHash: bc.LastHash,
-			Database:    db,
-			Chain:       bc,
+		allBlocksJSON, err := json.Marshal(allBlocks)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		// ----------------------------------------------------------
-		var allBlocks []byte
-		allBlocks = append(allBlocks, '[') // Start of JSON array
-
-		it := 0
-		for {
-			block, err := iterator.IterateNext()
-			if err != nil {
-				break
-			}
-
-			m, err := block.MarshalJSON()
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			if it > 0 {
-				allBlocks = append(allBlocks, ',') // Add comma between JSON objects
-			}
-
-			allBlocks = append(allBlocks, m...)
-
-			it++
-
-			if len(block.PrevHash) == 0 {
-				break
-			}
-		}
-
-		allBlocks = append(allBlocks, ']') // End of JSON array
-
-		// ----------------------------------------------------------
-
 		w.Header().Add("Content-Type", "application/json")
-		w.Write(allBlocks)
+		w.Write(allBlocksJSON)
 
 	default:
 		http.Error(w, "ERROR: Invalid HTTP Method", http.StatusBadRequest)
@@ -236,17 +205,10 @@ func (bcs *BlockchainServer) GetUTXOset(w http.ResponseWriter, req *http.Request
 		}
 
 		// -----------------------------------------------------------
-		var UTXO []byte
-		for _, output := range utxoset {
-
-			o, err := output.MarshalJSON()
-
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			UTXO = append(UTXO, o...)
+		UTXO, err := json.Marshal(utxoset)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		// -----------------------------------------------------------
