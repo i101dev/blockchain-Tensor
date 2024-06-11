@@ -49,7 +49,7 @@ func (pow *ProofOfWork) InitData(nonce int) ([]byte, error) {
 	data := bytes.Join(
 		[][]byte{
 			pow.Block.PrevHash,
-			pow.Block.Data,
+			pow.Block.HashTransactions(),
 			non,
 			diff,
 			// ToHex(int64(nonce)),

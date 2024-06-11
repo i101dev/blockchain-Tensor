@@ -2,30 +2,31 @@ package blockchain
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
 )
 
 type Block struct {
-	Timestamp int64
-	Nonce     int
-	PrevHash  []byte
-	Hash      []byte
-	Data      []byte
+	Timestamp    int64
+	Nonce        int
+	PrevHash     []byte
+	Hash         []byte
+	Transactions []*Transaction
 }
 
-func Genesis() (*Block, error) {
-	return CreateBlock("Genesis", []byte{})
+func Genesis(coinbase *Transaction) (*Block, error) {
+	return CreateBlock([]*Transaction{coinbase}, []byte{})
 }
 
-func CreateBlock(data string, prevHash []byte) (*Block, error) {
+func CreateBlock(txs []*Transaction, prevHash []byte) (*Block, error) {
 
 	block := &Block{
-		PrevHash: prevHash,
-		Hash:     []byte{},
-		Data:     []byte(data),
-		Nonce:    0,
+		PrevHash:     prevHash,
+		Hash:         []byte{},
+		Transactions: txs,
+		Nonce:        0,
 	}
 
 	pow := NewProof(block)
@@ -61,18 +62,31 @@ func (b *Block) Serialize() ([]byte, error) {
 	return res.Bytes(), nil
 }
 
+func (b *Block) HashTransactions() []byte {
+	var txHashes [][]byte
+	var txHash [32]byte
+
+	for _, tx := range b.Transactions {
+		txHashes = append(txHashes, tx.ID)
+	}
+
+	txHash = sha256.Sum256(bytes.Join(txHashes, []byte{}))
+
+	return txHash[:]
+}
+
 func (b *Block) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Timestamp int64  `json:"timestamp"`
 		Nonce     int    `json:"nonce"`
 		Hash      string `json:"hash"`
 		PrevHash  string `json:"previous_hash"`
-		Data      string `json:"data"`
+		// Data      string `json:"data"`
 	}{
 		Timestamp: b.Timestamp,
 		Nonce:     b.Nonce,
 		Hash:      fmt.Sprintf("%x", b.Hash),
 		PrevHash:  fmt.Sprintf("%x", b.PrevHash),
-		Data:      string(b.Data),
+		// Data:      string(b.Data),
 	})
 }
