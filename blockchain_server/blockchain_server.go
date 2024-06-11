@@ -96,6 +96,7 @@ func (bcs *BlockchainServer) PrintChain(w http.ResponseWriter, req *http.Request
 			if it > 0 {
 				allBlocks = append(allBlocks, ',') // Add comma between JSON objects
 			}
+
 			allBlocks = append(allBlocks, m...)
 
 			it++
@@ -176,22 +177,19 @@ func (bcs *BlockchainServer) AddTXN(w http.ResponseWriter, req *http.Request) {
 		}
 
 		// ----------------------------------------------------------
-		chain, err := bcs.GetBlockchain()
+		bc, err := bcs.GetBlockchain()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// ----------------------------------------------------------
-		// newTxn, err := blockchain.NewTransaction(txn.From, txn.To, txn.Amount, chain)
-		newTxn, err := blockchain.DummyTransaction(ORIGIN_ADDRESS, txn.To, txn.Amount, chain)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		blockchain.OpenDB(bc)
+		defer bc.CloseDB()
 
 		// ----------------------------------------------------------
-		err = chain.AddBlock([]*blockchain.Transaction{newTxn})
+		newTxn := blockchain.NewTransaction(txn.From, txn.To, txn.Amount, bc)
+		err = bc.AddBlock([]*blockchain.Transaction{newTxn})
+
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -260,6 +258,48 @@ func (bcs *BlockchainServer) GetUTXOset(w http.ResponseWriter, req *http.Request
 	}
 }
 
+func (bcs *BlockchainServer) GetBalance(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+
+		w.Header().Add("Content-Type", "application/json")
+
+		address := req.URL.Query().Get("address")
+
+		// -----------------------------------------------------------
+		chain, err := bcs.GetBlockchain()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		blockchain.OpenDB(chain)
+		defer chain.CloseDB()
+
+		// -----------------------------------------------------------
+		utxoset := chain.FindUTXO(address)
+
+		balance := 0
+		for _, output := range utxoset {
+			balance += output.Value
+		}
+
+		// -----------------------------------------------------------
+		response := map[string]int{"balance": balance}
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Add("Content-Type", "application/json")
+		w.Write(jsonResponse)
+
+	default:
+		http.Error(w, "ERROR: Invalid HTTP Method", http.StatusBadRequest)
+	}
+}
+
 func (bcs *BlockchainServer) Run() {
 
 	if err := bcs.InitBlockchain(); err != nil {
@@ -270,6 +310,7 @@ func (bcs *BlockchainServer) Run() {
 	http.HandleFunc("/printchain", bcs.PrintChain)
 	http.HandleFunc("/getblock", bcs.GetBlock)
 	http.HandleFunc("/utxoset", bcs.GetUTXOset)
+	http.HandleFunc("/balance", bcs.GetBalance)
 
 	http.HandleFunc("/addtxn", bcs.AddTXN)
 

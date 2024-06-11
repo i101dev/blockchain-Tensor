@@ -101,11 +101,11 @@ func (chain *Blockchain) PostBlockToDB(lastHash []byte, newBlock *Block, db *bad
 
 func (chain *Blockchain) AddBlock(txs []*Transaction) error {
 
-	db := OpenDB(chain)
-	defer chain.CloseDB()
+	// db := OpenDB(chain)
+	// defer chain.CloseDB()
 
 	// ----------------------------------------------------------
-	lastHash, err := chain.GetLastHash(db)
+	lastHash, err := chain.GetLastHash(chain.Database)
 	if err != nil {
 		return err
 	}
@@ -116,7 +116,7 @@ func (chain *Blockchain) AddBlock(txs []*Transaction) error {
 		return err
 	}
 
-	return chain.PostBlockToDB(lastHash, newBlock, db)
+	return chain.PostBlockToDB(lastHash, newBlock, chain.Database)
 }
 
 func (chain *Blockchain) GetBlockByHash(db *badger.DB, hash []byte) (*Block, error) {
@@ -267,30 +267,25 @@ func LoadBlockchain(address string, nodeID uint16) (*Blockchain, error) {
 // -----------------------------------------------------------------------
 // UTXO - Tensor methods
 
-func (chain *Blockchain) FindUnspentTransactions(address string) ([]Transaction, error) {
-
-	var unspentTX []Transaction
-	var err error = nil
+func (chain *Blockchain) FindUnspentTransactions(address string) []Transaction {
+	var unspentTxs []Transaction
 
 	spentTXOs := make(map[string][]int)
+
 	iter := chain.NewIterator()
 
 	for {
+		block, _ := iter.IterateNext()
 
-		block, iterError := iter.IterateNext()
-		if iterError != nil {
-			err = iterError
+		if block == nil {
+			fmt.Println("\n*** >>> NOOOOOOOOOOOOOO BLOCK")
 			break
 		}
 
-		// Loop through all transactions in block ----------------------------------
 		for _, tx := range block.Transactions {
-
 			txID := hex.EncodeToString(tx.ID)
 
 		Outputs:
-
-			// Loop through all transaction outputs ------------------------------------
 			for outIdx, out := range tx.Outputs {
 				if spentTXOs[txID] != nil {
 					for _, spentOut := range spentTXOs[txID] {
@@ -299,24 +294,15 @@ func (chain *Blockchain) FindUnspentTransactions(address string) ([]Transaction,
 						}
 					}
 				}
-
 				if out.CanBeUnlocked(address) {
-					unspentTX = append(unspentTX, *tx)
+					unspentTxs = append(unspentTxs, *tx)
 				}
 			}
-
-			// If not a coinbase transaction ------------------------------------
 			if !tx.IsCoinbase() {
-
-				// Loop through all transaction inputs --------------------------
 				for _, in := range tx.Inputs {
-
-					// If [address] owns the input ------------------------------
 					if in.CanUnlock(address) {
-						inTxHash := hex.EncodeToString(in.ID)
-
-						// Add the input to the array of spent outputs ----------
-						spentTXOs[inTxHash] = append(spentTXOs[inTxHash], in.Out)
+						inTxID := hex.EncodeToString(in.ID)
+						spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Out)
 					}
 				}
 			}
@@ -327,40 +313,37 @@ func (chain *Blockchain) FindUnspentTransactions(address string) ([]Transaction,
 		}
 	}
 
-	return unspentTX, err
+	return unspentTxs
 }
-func (chain *Blockchain) FindUTXO(address string) ([]TxOutput, error) {
 
+func (chain *Blockchain) FindUTXO(address string) []TxOutput {
 	var UTXOs []TxOutput
-	unspentTransactions, err := chain.FindUnspentTransactions(address)
+	unspentTransactions := chain.FindUnspentTransactions(address)
 
-	if err != nil {
-
-		for _, tx := range unspentTransactions {
-			for _, out := range tx.Outputs {
-				if out.CanBeUnlocked(address) {
-					UTXOs = append(UTXOs, out)
-				}
+	for _, tx := range unspentTransactions {
+		for _, out := range tx.Outputs {
+			if out.CanBeUnlocked(address) {
+				UTXOs = append(UTXOs, out)
 			}
 		}
-
 	}
-
-	return UTXOs, err
+	return UTXOs
 }
+
 func (chain *Blockchain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
+
 	unspentOuts := make(map[string][]int)
-	unspentTxs, _ := chain.FindUnspentTransactions(address)
+	unspentTxs := chain.FindUnspentTransactions(address)
 	accumulated := 0
 
 Work:
 	for _, tx := range unspentTxs {
-		txHash := hex.EncodeToString(tx.ID)
+		txID := hex.EncodeToString(tx.ID)
 
 		for outIdx, out := range tx.Outputs {
 			if out.CanBeUnlocked(address) && accumulated < amount {
 				accumulated += out.Value
-				unspentOuts[txHash] = append(unspentOuts[txHash], outIdx)
+				unspentOuts[txID] = append(unspentOuts[txID], outIdx)
 
 				if accumulated >= amount {
 					break Work
@@ -389,12 +372,23 @@ func (chain *Blockchain) NewIterator() *BlockchainIterator {
 
 func (iter *BlockchainIterator) IterateNext() (*Block, error) {
 
-	block, err := iter.Chain.GetBlockByHash(iter.Database, iter.CurrentHash)
-	if err != nil {
-		return nil, err
-	}
+	var block *Block
+
+	err := iter.Database.View(func(txn *badger.Txn) error {
+
+		item, err := txn.Get(iter.CurrentHash)
+		util.Handle(err, "IterateNext 1")
+
+		encodedBlock, err := item.ValueCopy(nil)
+		util.Handle(err, "IterateNext 2")
+
+		block, err = Deserialize(encodedBlock)
+		util.Handle(err, "IterateNext 3")
+
+		return nil
+	})
 
 	iter.CurrentHash = block.PrevHash
 
-	return block, nil
+	return block, err
 }

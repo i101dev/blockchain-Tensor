@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/i101dev/blockchain-Tensor/util"
@@ -114,7 +115,10 @@ func CoinbaseTX(to string, data string) *Transaction {
 	return &newTX
 }
 
-func NewTransaction(from string, to string, amount int, chain *Blockchain) (*Transaction, error) {
+func NewTransaction(from, to string, amount int, chain *Blockchain) *Transaction {
+
+	// blockchain.OpenDB(chain)
+	// defer chain.CloseDB()
 
 	var inputs []TxInput
 	var outputs []TxOutput
@@ -122,80 +126,29 @@ func NewTransaction(from string, to string, amount int, chain *Blockchain) (*Tra
 	acc, validOutputs := chain.FindSpendableOutputs(from, amount)
 
 	if acc < amount {
-		return nil, fmt.Errorf("ERROR: insufficient funds")
+		log.Panic("Error: not enough funds")
 	}
 
-	for outID, outs := range validOutputs {
-		txID, err := hex.DecodeString(outID)
-		if err != nil {
-			return nil, err
-		}
+	for txid, outs := range validOutputs {
+		txID, err := hex.DecodeString(txid)
+		util.Handle(err, "NewTransaction 1")
 
 		for _, out := range outs {
-			inp := TxInput{
-				ID:  txID,
-				Out: out,
-				Sig: from,
-			}
-			inputs = append(inputs, inp)
+			input := TxInput{txID, out, from}
+			inputs = append(inputs, input)
 		}
 	}
 
-	// ---------------------------------------------------
-	newOutput1 := TxOutput{
-		Value:  amount,
-		PubKey: to,
-	}
-	outputs = append(outputs, newOutput1)
+	outputs = append(outputs, TxOutput{amount, to})
 
-	// ---------------------------------------------------
 	if acc > amount {
-		newOutput2 := TxOutput{
-			Value:  acc - amount,
-			PubKey: from,
-		}
-		outputs = append(outputs, newOutput2)
+		outputs = append(outputs, TxOutput{acc - amount, from})
 	}
 
-	// ---------------------------------------------------
-	newTx := &Transaction{
-		Inputs:  inputs,
-		Outputs: outputs,
-	}
+	tx := Transaction{nil, inputs, outputs}
+	tx.SetID()
 
-	newTx.SetID()
-
-	return newTx, nil
-}
-
-func DummyTransaction(from string, to string, amount int, chain *Blockchain) (*Transaction, error) {
-
-	var inputs []TxInput
-	var outputs []TxOutput
-
-	originTxHash, _ := hex.DecodeString("ad0f92fb8e1489c59cbc7833ca2e19581fd72b6b856e4b0e37d0694a8dc86930")
-
-	// ---------------------------------------------------
-	inputs = append(inputs, TxInput{
-		ID:  originTxHash,
-		Out: 0,
-		Sig: from,
-	})
-	// ---------------------------------------------------
-	outputs = append(outputs, TxOutput{
-		Value:  amount,
-		PubKey: to,
-	})
-
-	// ---------------------------------------------------
-	newTx := &Transaction{
-		Inputs:  inputs,
-		Outputs: outputs,
-	}
-
-	newTx.SetID()
-
-	return newTx, nil
+	return &tx
 }
 
 // ---------------------------------------------------------------------
