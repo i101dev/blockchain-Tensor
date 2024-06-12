@@ -24,3 +24,9 @@ Blockchain can gaurantee integrity of the game and neutralize cheaters immediate
 -   The sum of a players actions - transactions - during their turn is the `block.Data`
 
 -   The block is recorded when the active player ends their turn - player sends TX free of charge
+
+---
+
+Credit goes to Tensor for laying the foundation:
+
+https://github.com/tensor-programming/golang-blockchain

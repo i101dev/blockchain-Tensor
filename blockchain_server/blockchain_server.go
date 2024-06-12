@@ -17,7 +17,7 @@ var (
 	cache map[string]*blockchain.Blockchain = make(map[string]*blockchain.Blockchain)
 
 	CHAIN_ID       = "blockchain"
-	ORIGIN_ADDRESS = "OriginAddress"
+	ORIGIN_ADDRESS = "1MDghwANCEEUnbiCsdGPUTM9AVmfFr8auK"
 )
 
 type BlockchainServer struct {
@@ -172,6 +172,53 @@ func (bcs *BlockchainServer) GetBlock(w http.ResponseWriter, req *http.Request) 
 	}
 }
 
+func (bcs *BlockchainServer) GetTXN(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+
+		w.Header().Add("Content-Type", "application/json")
+
+		ID := req.URL.Query().Get("id")
+
+		// -----------------------------------------------------------
+		chain, err := bcs.GetBlockchain()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		blockchain.OpenDB(chain)
+		defer chain.CloseDB()
+
+		// -----------------------------------------------------------
+		txnID, err := hex.DecodeString(ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		transaction, err := chain.FindTransaction(txnID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// -----------------------------------------------------------
+		TXN, err := json.Marshal(transaction)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// -----------------------------------------------------------
+		w.Header().Add("Content-Type", "application/json")
+		w.Write(TXN)
+
+	default:
+		http.Error(w, "ERROR: Invalid HTTP Method", http.StatusBadRequest)
+	}
+}
+
 func (bcs *BlockchainServer) AddTXN(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodPost:
@@ -197,7 +244,8 @@ func (bcs *BlockchainServer) AddTXN(w http.ResponseWriter, req *http.Request) {
 		defer bc.CloseDB()
 
 		// ----------------------------------------------------------
-		newTxn := blockchain.NewTransaction(txn.From, txn.To, txn.Amount, bc)
+		wallet, _ := wallet.CreateWallets()
+		newTxn := blockchain.NewTransaction(txn.From, txn.To, txn.Amount, bc, wallet)
 		err = bc.AddBlock([]*blockchain.Transaction{newTxn})
 
 		if err != nil {
@@ -280,7 +328,10 @@ func (bcs *BlockchainServer) GetBalance(w http.ResponseWriter, req *http.Request
 		defer chain.CloseDB()
 
 		// -----------------------------------------------------------
-		utxoset := chain.FindUTXO(address)
+		walletDat, _ := wallet.CreateWallets()
+		account := walletDat.GetAccount(address)
+
+		utxoset := chain.FindUTXO(wallet.PublicKeyHash(account.PublicKey))
 
 		balance := 0
 		for _, output := range utxoset {
@@ -316,6 +367,7 @@ func (bcs *BlockchainServer) Run() {
 	http.HandleFunc("/utxoset", bcs.GetUTXOset)
 	http.HandleFunc("/balance", bcs.GetBalance)
 
+	http.HandleFunc("/gettxn", bcs.GetTXN)
 	http.HandleFunc("/addtxn", bcs.AddTXN)
 
 	hostURL := "0.0.0.0:" + strconv.Itoa(int(bcs.port))

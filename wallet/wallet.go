@@ -100,6 +100,7 @@ func (w *Wallet) SaveFile() {
 	util.Handle(err, "SaveFile 2")
 }
 
+// ---------------------------------------------------------------
 type PrivKey struct {
 	D          *big.Int
 	PublicKeyX *big.Int

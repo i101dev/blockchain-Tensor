@@ -1,6 +1,7 @@
 package wallet
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -27,17 +28,25 @@ type Account struct {
 func (w Account) Address() []byte {
 
 	publicHash := PublicKeyHash(w.PublicKey)
-	// fmt.Println("\n*** >>> [publicHash] - ", hex.EncodeToString(publicHash))
 
 	versionedHash := append([]byte{version}, publicHash...)
 	checkSum := CheckSum(versionedHash)
-	// fmt.Println("\n*** >>> [checkSum] - ", hex.EncodeToString(checkSum))
 
 	fullHash := append(versionedHash, checkSum...)
 	address := util.Base58Encode(fullHash)
-	// fmt.Printf("\n*** >>> [address] - %s", string(address))
 
 	return address
+}
+
+func PubKeyHashToAddr(pubKeyHash []byte) string {
+
+	versionedHash := append([]byte{version}, pubKeyHash...)
+	checkSum := CheckSum(versionedHash)
+
+	fullHash := append(versionedHash, checkSum...)
+	address := util.Base58Encode(fullHash)
+
+	return string(address)
 }
 
 func NewKeyPair() (ecdsa.PrivateKey, []byte) {
@@ -82,6 +91,19 @@ func CheckSum(payload []byte) []byte {
 	hashTwo := sha256.Sum256(hashOne[:])
 
 	return hashTwo[:checksumLength]
+}
+
+func ValidateAddress(address string) bool {
+
+	pubKeyHash := util.Base58Decode([]byte(address))
+	actualChecksum := pubKeyHash[len(pubKeyHash)-checksumLength:]
+
+	version := pubKeyHash[0]
+	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-checksumLength]
+
+	targetChecksum := CheckSum(append([]byte{version}, pubKeyHash...))
+
+	return bytes.Equal(actualChecksum, targetChecksum)
 }
 
 // -----------------------------------------------------------------------

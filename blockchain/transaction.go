@@ -2,15 +2,20 @@ package blockchain
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/big"
 	"strings"
 
 	"github.com/i101dev/blockchain-Tensor/util"
+	"github.com/i101dev/blockchain-Tensor/wallet"
 )
 
 type Transaction struct {
@@ -30,6 +35,126 @@ func (t *Transaction) Print() {
 	for _, output := range t.Outputs {
 		output.Print()
 	}
+}
+
+func (t Transaction) Serialize() []byte {
+
+	var encoded bytes.Buffer
+
+	encoder := gob.NewEncoder(&encoded)
+
+	if err := encoder.Encode(t); err != nil {
+		util.Handle(err, "Serialize Transaction")
+	}
+
+	return encoded.Bytes()
+}
+
+func (t *Transaction) Hash() []byte {
+
+	var hash [32]byte
+
+	txCopy := *t
+	txCopy.ID = []byte{}
+
+	hash = sha256.Sum256(txCopy.Serialize())
+
+	return hash[:]
+}
+
+func (t *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transaction) {
+	if t.IsCoinbase() {
+		return
+	}
+
+	for _, in := range t.Inputs {
+		if prevTXs[hex.EncodeToString(in.ID)].ID == nil {
+			log.Panic("\n *** >>> ERROR: previous transaction is not correct")
+		}
+	}
+
+	txCopy := t.TrimmedCopy()
+
+	for inId, in := range txCopy.Inputs {
+
+		prevTX := prevTXs[hex.EncodeToString(in.ID)]
+		txCopy.Inputs[inId].PubKey = prevTX.Outputs[in.Out].PubKeyHash
+		txCopy.Inputs[inId].Signature = nil
+
+		txCopy.ID = txCopy.Hash()
+		txCopy.Inputs[inId].PubKey = nil
+
+		r, s, err := ecdsa.Sign(rand.Reader, &privKey, txCopy.ID)
+		util.Handle(err, "Sign Transaction")
+
+		signature := append(r.Bytes(), s.Bytes()...)
+
+		t.Inputs[inId].Signature = signature
+	}
+}
+
+func (t *Transaction) Verify(prevTXs map[string]Transaction) bool {
+	if t.IsCoinbase() {
+		return true
+	}
+
+	// Verify each of the inputs exists
+	for _, in := range t.Inputs {
+		if prevTXs[hex.EncodeToString(in.ID)].ID == nil {
+			log.Panic("Previous transaction not correct")
+		}
+	}
+
+	txCopy := t.TrimmedCopy()
+	curve := elliptic.P256()
+
+	for inId, in := range t.Inputs {
+
+		// Same as what's in the Transaction.Sign() method
+		prevTx := prevTXs[hex.EncodeToString(in.ID)]
+		txCopy.Inputs[inId].Signature = nil
+		txCopy.Inputs[inId].PubKey = prevTx.Outputs[in.Out].PubKeyHash
+		txCopy.ID = txCopy.Hash()
+		txCopy.Inputs[inId].PubKey = nil
+
+		// Deconstruct the signature
+		r := big.Int{}
+		s := big.Int{}
+		sigLen := len(in.Signature)
+		r.SetBytes(in.Signature[:(sigLen / 2)])
+		s.SetBytes(in.Signature[(sigLen / 2):])
+
+		// Deconstruct the public key
+		x := big.Int{}
+		y := big.Int{}
+		keyLen := len(in.PubKey)
+		x.SetBytes(in.PubKey[:(keyLen / 2)])
+		y.SetBytes(in.PubKey[(keyLen / 2):])
+
+		rawPubKey := ecdsa.PublicKey{curve, &x, &y}
+		if ecdsa.Verify(&rawPubKey, txCopy.ID, &r, &s) == false {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (tx *Transaction) TrimmedCopy() Transaction {
+	var inputs []TxInput
+	var outputs []TxOutput
+
+	for _, in := range tx.Inputs {
+		inputs = append(inputs, TxInput{in.Out, in.ID, nil, nil})
+	}
+
+	for _, out := range tx.Outputs {
+		outputs = append(outputs, TxOutput{out.Value, out.PubKeyHash})
+	}
+
+	txCopy := Transaction{tx.ID, inputs, outputs}
+
+	return txCopy
 }
 
 func (t *Transaction) MarshalJSON() ([]byte, error) {
@@ -94,20 +219,17 @@ func CoinbaseTX(to string, data string) *Transaction {
 	}
 
 	txIn := TxInput{
-		ID:  []byte{},
-		Out: -1,
-		Sig: data,
+		ID:        []byte{},
+		Out:       -1,
+		Signature: []byte(data),
 	}
 
-	txOut := TxOutput{
-		Value:  100,
-		PubKey: to,
-	}
+	txOut := NewTXOutput(100, to)
 
 	newTX := Transaction{
 		ID:      nil,
 		Inputs:  []TxInput{txIn},
-		Outputs: []TxOutput{txOut},
+		Outputs: []TxOutput{*txOut},
 	}
 
 	newTX.SetID()
@@ -115,7 +237,7 @@ func CoinbaseTX(to string, data string) *Transaction {
 	return &newTX
 }
 
-func NewTransaction(from, to string, amount int, chain *Blockchain) *Transaction {
+func NewTransaction(from, to string, amount int, chain *Blockchain, senderWallet *wallet.Wallet) *Transaction {
 
 	// blockchain.OpenDB(chain)
 	// defer chain.CloseDB()
@@ -123,7 +245,10 @@ func NewTransaction(from, to string, amount int, chain *Blockchain) *Transaction
 	var inputs []TxInput
 	var outputs []TxOutput
 
-	acc, validOutputs := chain.FindSpendableOutputs(from, amount)
+	w := senderWallet.GetAccount(from)
+	pubKeyHash := wallet.PublicKeyHash(w.PublicKey)
+
+	acc, validOutputs := chain.FindSpendableOutputs(pubKeyHash, amount)
 
 	if acc < amount {
 		log.Panic("Error: not enough funds")
@@ -134,19 +259,20 @@ func NewTransaction(from, to string, amount int, chain *Blockchain) *Transaction
 		util.Handle(err, "NewTransaction 1")
 
 		for _, out := range outs {
-			input := TxInput{txID, out, from}
+			input := TxInput{out, txID, nil, w.PublicKey}
 			inputs = append(inputs, input)
 		}
 	}
 
-	outputs = append(outputs, TxOutput{amount, to})
+	outputs = append(outputs, *NewTXOutput(amount, to))
 
 	if acc > amount {
-		outputs = append(outputs, TxOutput{acc - amount, from})
+		outputs = append(outputs, *NewTXOutput(acc-amount, from))
 	}
 
 	tx := Transaction{nil, inputs, outputs}
-	tx.SetID()
+	tx.ID = tx.Hash()
+	chain.SignTransaction(&tx, w.PrivateKey)
 
 	return &tx
 }
