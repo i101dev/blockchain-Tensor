@@ -191,6 +191,7 @@ func (chain *Blockchain) GetUnspentOutputs(db *badger.DB, address string) ([]*Tx
 	return utxoSet, nil
 }
 
+// -----------------------------------------------------------------------
 func OpenDB(chain *Blockchain) *badger.DB {
 
 	opts := badger.DefaultOptions(chain.Path)

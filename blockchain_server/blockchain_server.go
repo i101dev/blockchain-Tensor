@@ -10,6 +10,7 @@ import (
 
 	"github.com/i101dev/blockchain-Tensor/blockchain"
 	"github.com/i101dev/blockchain-Tensor/types"
+	"github.com/i101dev/blockchain-Tensor/wallet"
 )
 
 var (
@@ -29,12 +30,12 @@ func NewBlockchainServer(port uint16) *BlockchainServer {
 	}
 }
 
-func (bcs *BlockchainServer) InitBlockchain() error {
+func (bcs *BlockchainServer) LoadBlockchain() error {
 
 	bc, err := blockchain.LoadBlockchain(ORIGIN_ADDRESS, bcs.port)
 
 	if err != nil {
-		return fmt.Errorf("failed to initialize new chain")
+		return fmt.Errorf("failed to load chain")
 	}
 
 	cache[CHAIN_ID] = bc
@@ -81,6 +82,46 @@ func (bcs *BlockchainServer) PrintChain(w http.ResponseWriter, req *http.Request
 		// ----------------------------------------------------------
 		w.Header().Add("Content-Type", "application/json")
 		w.Write(allBlocksJSON)
+
+	default:
+		http.Error(w, "ERROR: Invalid HTTP Method", http.StatusBadRequest)
+	}
+}
+
+func (bcs *BlockchainServer) NewAccount(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+
+		w.Header().Add("Content-Type", "application/json")
+
+		// ----------------------------------------------------------
+		w, _ := wallet.CreateWallets()
+
+		w.AddAccount()
+
+		w.SaveFile()
+
+		w.Print()
+		// ----------------------------------------------------------
+		// w.Header().Add("Content-Type", "application/json")
+
+	default:
+		http.Error(w, "ERROR: Invalid HTTP Method", http.StatusBadRequest)
+	}
+}
+
+func (bcs *BlockchainServer) LoadWallet(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+
+		w.Header().Add("Content-Type", "application/json")
+
+		// ----------------------------------------------------------
+		w, _ := wallet.CreateWallets()
+
+		w.Print()
+		// ----------------------------------------------------------
+		// w.Header().Add("Content-Type", "application/json")
 
 	default:
 		http.Error(w, "ERROR: Invalid HTTP Method", http.StatusBadRequest)
@@ -264,12 +305,13 @@ func (bcs *BlockchainServer) GetBalance(w http.ResponseWriter, req *http.Request
 
 func (bcs *BlockchainServer) Run() {
 
-	if err := bcs.InitBlockchain(); err != nil {
+	if err := bcs.LoadBlockchain(); err != nil {
 		log.Fatal(err)
 	}
 
-	// http.HandleFunc("/initchain", bcs.InitChain)
 	http.HandleFunc("/printchain", bcs.PrintChain)
+	http.HandleFunc("/newaccount", bcs.NewAccount)
+	http.HandleFunc("/loadwallet", bcs.LoadWallet)
 	http.HandleFunc("/getblock", bcs.GetBlock)
 	http.HandleFunc("/utxoset", bcs.GetUTXOset)
 	http.HandleFunc("/balance", bcs.GetBalance)
