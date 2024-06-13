@@ -29,7 +29,7 @@ const (
 	TX         = "tx"
 	VERSION    = "version"
 
-	NODE_ZERO = "localhost:5000"
+	NODE_ZERO = "localhost:5001"
 )
 
 var (
@@ -99,7 +99,7 @@ func BytesToCmd(bytes []byte) string {
 		}
 	}
 
-	return fmt.Sprintf("%s", cmd)
+	return string(cmd)
 }
 
 func ExtractCmd(request []byte) []byte {
