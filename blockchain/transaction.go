@@ -131,8 +131,13 @@ func (t *Transaction) Verify(prevTXs map[string]Transaction) bool {
 		x.SetBytes(in.PubKey[:(keyLen / 2)])
 		y.SetBytes(in.PubKey[(keyLen / 2):])
 
-		rawPubKey := ecdsa.PublicKey{curve, &x, &y}
-		if ecdsa.Verify(&rawPubKey, txCopy.ID, &r, &s) == false {
+		rawPubKey := ecdsa.PublicKey{
+			Curve: curve,
+			X:     &x,
+			Y:     &y,
+		}
+
+		if !ecdsa.Verify(&rawPubKey, txCopy.ID, &r, &s) {
 			return false
 		}
 	}
@@ -237,7 +242,7 @@ func CoinbaseTX(to string, data string) *Transaction {
 	return &newTX
 }
 
-func NewTransaction(from, to string, amount int, chain *Blockchain, senderWallet *wallet.Wallet) *Transaction {
+func NewTransaction(from, to string, amount int, UTXO *UTXOSet, senderWallet *wallet.Wallet) *Transaction {
 
 	// blockchain.OpenDB(chain)
 	// defer chain.CloseDB()
@@ -248,7 +253,7 @@ func NewTransaction(from, to string, amount int, chain *Blockchain, senderWallet
 	w := senderWallet.GetAccount(from)
 	pubKeyHash := wallet.PublicKeyHash(w.PublicKey)
 
-	acc, validOutputs := chain.FindSpendableOutputs(pubKeyHash, amount)
+	acc, validOutputs := UTXO.FindSpendableOutputs(pubKeyHash, amount)
 
 	if acc < amount {
 		log.Panic("Error: not enough funds")
@@ -272,7 +277,7 @@ func NewTransaction(from, to string, amount int, chain *Blockchain, senderWallet
 
 	tx := Transaction{nil, inputs, outputs}
 	tx.ID = tx.Hash()
-	chain.SignTransaction(&tx, w.PrivateKey)
+	UTXO.Blockchain.SignTransaction(&tx, w.PrivateKey)
 
 	return &tx
 }

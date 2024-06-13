@@ -234,24 +234,30 @@ func (bcs *BlockchainServer) AddTXN(w http.ResponseWriter, req *http.Request) {
 		}
 
 		// ----------------------------------------------------------
-		bc, err := bcs.GetBlockchain()
+		chain, err := bcs.GetBlockchain()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		blockchain.OpenDB(bc)
-		defer bc.CloseDB()
+		blockchain.OpenDB(chain)
+		defer chain.CloseDB()
 
 		// ----------------------------------------------------------
+		UTXOset := blockchain.UTXOSet{
+			Blockchain: chain,
+		}
+
 		wallet, _ := wallet.CreateWallets()
-		newTxn := blockchain.NewTransaction(txn.From, txn.To, txn.Amount, bc, wallet)
-		err = bc.AddBlock([]*blockchain.Transaction{newTxn})
+		newTxn := blockchain.NewTransaction(txn.From, txn.To, txn.Amount, &UTXOset, wallet)
+		newBlock, err := chain.AddBlock([]*blockchain.Transaction{newTxn})
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		UTXOset.Update(newBlock)
 
 		// ----------------------------------------------------------
 		m, err := newTxn.MarshalJSON()
@@ -319,6 +325,11 @@ func (bcs *BlockchainServer) GetBalance(w http.ResponseWriter, req *http.Request
 
 		// -----------------------------------------------------------
 		chain, err := bcs.GetBlockchain()
+
+		UTXOset := blockchain.UTXOSet{
+			Blockchain: chain,
+		}
+
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -330,16 +341,57 @@ func (bcs *BlockchainServer) GetBalance(w http.ResponseWriter, req *http.Request
 		// -----------------------------------------------------------
 		walletDat, _ := wallet.CreateWallets()
 		account := walletDat.GetAccount(address)
-
-		utxoset := chain.FindUTXO(wallet.PublicKeyHash(account.PublicKey))
+		pubKeyHash := wallet.PublicKeyHash(account.PublicKey)
+		UTXOs := UTXOset.FindUnspentTransactions(pubKeyHash)
 
 		balance := 0
-		for _, output := range utxoset {
-			balance += output.Value
+		for _, out := range UTXOs {
+			balance += out.Value
 		}
 
 		// -----------------------------------------------------------
 		response := map[string]int{"balance": balance}
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Add("Content-Type", "application/json")
+		w.Write(jsonResponse)
+
+	default:
+		http.Error(w, "ERROR: Invalid HTTP Method", http.StatusBadRequest)
+	}
+}
+
+func (bcs *BlockchainServer) Reindex(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+
+		w.Header().Add("Content-Type", "application/json")
+
+		// -----------------------------------------------------------
+		chain, err := bcs.GetBlockchain()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		blockchain.OpenDB(chain)
+		defer chain.CloseDB()
+		// -----------------------------------------------------------
+
+		UTXOset := blockchain.UTXOSet{
+			Blockchain: chain,
+		}
+
+		UTXOset.Reindex()
+
+		count := UTXOset.CountTransactions()
+
+		// -----------------------------------------------------------
+		response := map[string]int{"txCount": count}
 		jsonResponse, err := json.Marshal(response)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -366,6 +418,8 @@ func (bcs *BlockchainServer) Run() {
 	http.HandleFunc("/getblock", bcs.GetBlock)
 	http.HandleFunc("/utxoset", bcs.GetUTXOset)
 	http.HandleFunc("/balance", bcs.GetBalance)
+
+	http.HandleFunc("/reindex", bcs.Reindex)
 
 	http.HandleFunc("/gettxn", bcs.GetTXN)
 	http.HandleFunc("/addtxn", bcs.AddTXN)

@@ -1,32 +1,75 @@
-# Boardgame Blockchain
+## Proof of Work & UTXO Blockchain with web API
 
--   `go run main.go` to run the app
--   `go build main.go` to build an executable file
+Port 5000 by default:
 
-This is a proprietary blockchain that I've been meditating on, with the intention to integrate a digital boardgame I already built using the MERN stack.
+```
+cd blockchain_server && go run .
+```
 
-Because this is for a game that I already built, there is no penalty for failure. If something with the chain goes wrong, no problem. Give the player with the highest score a prize and shut it down. Find and fix whatever bug caused the issue, and start a new game.
+Or set port manually
 
-This strategy has the added benefit of neutralizing incumbant players and gives everyone a fresh and fair start.
+```
+cd blockchain_server && go run . -port <PORT>
+```
 
-Blockchain can gaurantee integrity of the game and neutralize cheaters immediately.
+## API Routes
 
-# Concept
+### GET /printchain
 
--   To audit the chain is a right
+-   **Description**: Returns all blocks in the blockchain.
+-   **Response**: JSON array of all blocks.
 
--   To run a node is a privilidge
+### GET /newaccount
 
--   Node operators can block known cheaters
+-   **Description**: Creates a new account and adds it to the wallet.
+-   **Response**: JSON representation of the new account.
 
--   Perfect decentralization not required for this particular use case
+### GET /loadwallet
 
--   The sum of a players actions - transactions - during their turn is the `block.Data`
+-   **Description**: Loads and prints the wallet information.
+-   **Response**: JSON representation of the wallet information.
 
--   The block is recorded when the active player ends their turn - player sends TX free of charge
+### GET /getblock
+
+-   **Description**: Retrieves a block by its hash.
+-   **Query Parameters**:
+    -   `hash`: The hash of the block to retrieve.
+-   **Response**: JSON representation of the block.
+
+### GET /gettxn
+
+-   **Description**: Retrieves a transaction by its ID.
+-   **Query Parameters**:
+    -   `id`: The ID of the transaction to retrieve.
+-   **Response**: JSON representation of the transaction.
+
+### POST /addtxn
+
+-   **Description**: Adds a new transaction to the blockchain.
+-   **Request Body**: JSON object containing `from`, `to`, and `amount` fields.
+-   **Response**: JSON representation of the added transaction.
+
+### GET /utxoset
+
+-   **Description**: Retrieves the unspent transaction outputs (UTXOs) for a given address.
+-   **Query Parameters**:
+    -   `address`: The address to query UTXOs for.
+-   **Response**: JSON array of UTXOs.
+
+### GET /balance
+
+-   **Description**: Retrieves the balance for a given address.
+-   **Query Parameters**:
+    -   `address`: The address to query the balance for.
+-   **Response**: JSON object with the balance.
+
+### GET /reindex
+
+-   **Description**: Reindexes the UTXO set.
+-   **Response**: JSON object with the count of transactions in the UTXO set.
 
 ---
 
-Credit goes to Tensor for laying the foundation:
+### Credit goes to Tensor for laying the foundation:
 
 https://github.com/tensor-programming/golang-blockchain

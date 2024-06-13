@@ -132,7 +132,7 @@ func CreateBlock(txs []*Transaction, prevHash []byte) (*Block, error) {
 	return block, err
 }
 
-func Deserialize(data []byte) (*Block, error) {
+func DeserializeBlock(data []byte) (*Block, error) {
 
 	var block Block
 	decoder := gob.NewDecoder(bytes.NewReader(data))

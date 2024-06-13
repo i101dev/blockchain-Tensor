@@ -2,6 +2,7 @@ package blockchain
 
 import (
 	"bytes"
+	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -11,11 +12,6 @@ import (
 )
 
 // ---------------------------------------------------------------------
-// type TxInput struct {
-// 	ID  []byte // the respective transaction the output came from
-// 	Out int    // the index within the respective transaction []TxOutput
-// 	Sig string // provides the data used in the outputs `PubKey`
-// }
 
 type TxInput struct {
 	Out       int
@@ -134,7 +130,7 @@ func (out *TxOutput) Lock(address []byte) {
 }
 
 func (out *TxOutput) IsLockedWithKey(pubKeyHash []byte) bool {
-	return bytes.Compare(out.PubKeyHash, pubKeyHash) == 0
+	return bytes.Equal(out.PubKeyHash, pubKeyHash)
 }
 
 func NewTXOutput(value int, address string) *TxOutput {
@@ -147,4 +143,25 @@ func NewTXOutput(value int, address string) *TxOutput {
 	txo.Lock([]byte(address))
 
 	return txo
+}
+
+// ---------------------------------------------------------------------
+type TxOutputs struct {
+	Outputs []TxOutput
+}
+
+func (outs TxOutputs) Serialize() []byte {
+	var buffer bytes.Buffer
+	encode := gob.NewEncoder(&buffer)
+	err := encode.Encode(outs)
+	util.Handle(err, "Serialize TxOutputs")
+	return buffer.Bytes()
+}
+
+func DeserializeTxOutputs(data []byte) TxOutputs {
+	var outputs TxOutputs
+	decode := gob.NewDecoder(bytes.NewReader(data))
+	err := decode.Decode(&outputs)
+	util.Handle(err, "DeserializeTxOutputs")
+	return outputs
 }
