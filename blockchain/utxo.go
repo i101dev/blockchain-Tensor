@@ -197,7 +197,6 @@ func (u UTXOSet) FindUnspentTransactions(pubKeyHash []byte) []TxOutput {
 
 			item := it.Item()
 			v, err := item.ValueCopy(nil)
-
 			util.Handle(err, "FindUnspentTransactions 1")
 
 			outs := DeserializeTxOutputs(v)

@@ -197,19 +197,6 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (tx *Transaction) SetID() {
-
-	var encoded bytes.Buffer
-	var hash [32]byte
-
-	encode := gob.NewEncoder(&encoded)
-	err := encode.Encode(tx)
-	util.Handle(err, "** SetID - transaction.go **")
-
-	hash = sha256.Sum256(encoded.Bytes())
-	tx.ID = hash[:]
-}
-
 func (tx *Transaction) IsCoinbase() bool {
 	lenOne := len(tx.Inputs) == 1
 	idZero := len(tx.Inputs[0].ID) == 0
@@ -220,16 +207,23 @@ func (tx *Transaction) IsCoinbase() bool {
 func CoinbaseTX(to string, data string) *Transaction {
 
 	if data == "" {
-		data = fmt.Sprintf("Coins to %s", to)
+		randData := make([]byte, 24)
+		_, err := rand.Read(randData)
+		if err != nil {
+			util.Handle(err, "CoinbaseTX")
+		}
+
+		data = fmt.Sprintf("%x", randData)
 	}
 
 	txIn := TxInput{
 		ID:        []byte{},
 		Out:       -1,
-		Signature: []byte(data),
+		Signature: nil,
+		PubKey:    []byte(data),
 	}
 
-	txOut := NewTXOutput(100, to)
+	txOut := NewTXOutput(20, to)
 
 	newTX := Transaction{
 		ID:      nil,
@@ -237,7 +231,7 @@ func CoinbaseTX(to string, data string) *Transaction {
 		Outputs: []TxOutput{*txOut},
 	}
 
-	newTX.SetID()
+	newTX.ID = newTX.Hash()
 
 	return &newTX
 }

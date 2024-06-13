@@ -90,7 +90,7 @@ type TxOutput struct {
 func (out *TxOutput) Print() {
 	fmt.Println("    **")
 	fmt.Printf("    | Value: %d\n", out.Value)
-	fmt.Printf("    | PubKey: %s\n", out.PubKeyHash)
+	fmt.Printf("    | PubKeyHash: %s\n", hex.EncodeToString(out.PubKeyHash))
 }
 
 func (out *TxOutput) MarshalJSON() ([]byte, error) {

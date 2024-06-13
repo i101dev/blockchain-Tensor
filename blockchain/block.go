@@ -2,12 +2,12 @@ package blockchain
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 )
 
 type Block struct {
@@ -34,7 +34,6 @@ func (b *Block) Print() {
 		t.Print()
 	}
 	fmt.Println()
-	// fmt.Printf("\n%s", strings.Repeat("=", 80))
 }
 
 func (b *Block) MarshalJSON() ([]byte, error) {
@@ -98,16 +97,16 @@ func (b *Block) Serialize() ([]byte, error) {
 }
 
 func (b *Block) HashTransactions() []byte {
+
 	var txHashes [][]byte
-	var txHash [32]byte
 
 	for _, tx := range b.Transactions {
-		txHashes = append(txHashes, tx.ID)
+		txHashes = append(txHashes, tx.Serialize())
 	}
 
-	txHash = sha256.Sum256(bytes.Join(txHashes, []byte{}))
+	tree := NewMerkleTree(txHashes)
 
-	return txHash[:]
+	return tree.RootNode.Data
 }
 
 func Genesis(coinbase *Transaction) (*Block, error) {
@@ -117,10 +116,11 @@ func Genesis(coinbase *Transaction) (*Block, error) {
 func CreateBlock(txs []*Transaction, prevHash []byte) (*Block, error) {
 
 	block := &Block{
+		Timestamp:    time.Now().UnixNano(),
+		Nonce:        0,
 		PrevHash:     prevHash,
 		Hash:         []byte{},
 		Transactions: txs,
-		Nonce:        0,
 	}
 
 	pow := NewProof(block)

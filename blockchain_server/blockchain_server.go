@@ -248,9 +248,17 @@ func (bcs *BlockchainServer) AddTXN(w http.ResponseWriter, req *http.Request) {
 			Blockchain: chain,
 		}
 
-		wallet, _ := wallet.CreateWallets()
+		wallet, err := wallet.CreateWallets()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// ----------------------------------------------------------
 		newTxn := blockchain.NewTransaction(txn.From, txn.To, txn.Amount, &UTXOset, wallet)
-		newBlock, err := chain.AddBlock([]*blockchain.Transaction{newTxn})
+		cbTxn := blockchain.CoinbaseTX(txn.From, "")
+
+		newBlock, err := chain.AddBlock([]*blockchain.Transaction{cbTxn, newTxn})
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -326,10 +334,6 @@ func (bcs *BlockchainServer) GetBalance(w http.ResponseWriter, req *http.Request
 		// -----------------------------------------------------------
 		chain, err := bcs.GetBlockchain()
 
-		UTXOset := blockchain.UTXOSet{
-			Blockchain: chain,
-		}
-
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -337,6 +341,10 @@ func (bcs *BlockchainServer) GetBalance(w http.ResponseWriter, req *http.Request
 
 		blockchain.OpenDB(chain)
 		defer chain.CloseDB()
+
+		UTXOset := blockchain.UTXOSet{
+			Blockchain: chain,
+		}
 
 		// -----------------------------------------------------------
 		walletDat, _ := wallet.CreateWallets()
