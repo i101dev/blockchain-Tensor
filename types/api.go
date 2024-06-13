@@ -5,7 +5,8 @@ type AddBlockReq struct {
 }
 
 type NewTxnReq struct {
-	From   string `json:"from"`
-	To     string `json:"to"`
-	Amount int    `json:"amount"`
+	From    string `json:"from"`
+	To      string `json:"to"`
+	Amount  int    `json:"amount"`
+	MineNow bool   `json:"minenow"`
 }

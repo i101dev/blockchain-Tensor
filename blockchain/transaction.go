@@ -174,28 +174,28 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (t *Transaction) UnmarshalJSON(data []byte) error {
-	aux := struct {
-		ID      string     `json:"id"`
-		Inputs  []TxInput  `json:"inputs"`
-		Outputs []TxOutput `json:"outputs"`
-	}{}
+// func (t *Transaction) UnmarshalJSON(data []byte) error {
+// 	aux := struct {
+// 		ID      string     `json:"id"`
+// 		Inputs  []TxInput  `json:"inputs"`
+// 		Outputs []TxOutput `json:"outputs"`
+// 	}{}
 
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
+// 	if err := json.Unmarshal(data, &aux); err != nil {
+// 		return err
+// 	}
 
-	id, err := hex.DecodeString(aux.ID)
-	if err != nil {
-		return err
-	}
+// 	id, err := hex.DecodeString(aux.ID)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	t.ID = id
-	t.Inputs = aux.Inputs
-	t.Outputs = aux.Outputs
+// 	t.ID = id
+// 	t.Inputs = aux.Inputs
+// 	t.Outputs = aux.Outputs
 
-	return nil
-}
+// 	return nil
+// }
 
 func (tx *Transaction) IsCoinbase() bool {
 	lenOne := len(tx.Inputs) == 1
@@ -274,4 +274,13 @@ func NewTransaction(from, to string, amount int, UTXO *UTXOSet, senderWallet *wa
 	UTXO.Blockchain.SignTransaction(&tx, w.PrivateKey)
 
 	return &tx
+}
+
+func DeserializeTransaction(data []byte) Transaction {
+	var transaction Transaction
+
+	decoder := gob.NewDecoder(bytes.NewReader(data))
+	err := decoder.Decode(&transaction)
+	util.Handle(err, "DeserializeTransaction")
+	return transaction
 }

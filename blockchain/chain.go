@@ -80,13 +80,7 @@ func (chain *Blockchain) PostBlockToDB(lastHash []byte, newBlock *Block, db *bad
 	return db.Update(func(dbTXN *badger.Txn) error {
 
 		// ----------------------------------------------------------
-		serializedBlock, err := newBlock.Serialize()
-		if err != nil {
-			return err
-		}
-
-		// ----------------------------------------------------------
-		err = dbTXN.Set(newBlock.Hash, serializedBlock)
+		err := dbTXN.Set(newBlock.Hash, newBlock.Serialize())
 		if err != nil {
 			return fmt.Errorf("failed to set serialized block in database")
 		}
@@ -103,21 +97,125 @@ func (chain *Blockchain) PostBlockToDB(lastHash []byte, newBlock *Block, db *bad
 	})
 }
 
-func (chain *Blockchain) AddBlock(txs []*Transaction) (*Block, error) {
+// func (chain *Blockchain) AddBlock(txs []*Transaction) (*Block, error) {
 
-	lastHash, err := chain.GetLastHash(chain.Database)
-	if err != nil {
-		return nil, err
+// 	lastHash, err := chain.GetLastHash(chain.Database)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	newBlock, err := CreateBlock(txs, lastHash)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	err = chain.PostBlockToDB(lastHash, newBlock, chain.Database)
+
+//		return newBlock, err
+//	}
+
+func (chain *Blockchain) MineBlock(transactions []*Transaction) *Block {
+	var lastHash []byte
+	var lastHeight int
+
+	for _, tx := range transactions {
+		if !chain.VerifyTransaction(tx) {
+			log.Panic("Invalid Transaction")
+		}
 	}
 
-	newBlock, err := CreateBlock(txs, lastHash)
+	err := chain.Database.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte("lh"))
+		util.Handle(err, "MineBlock 1")
+		lastHash, _ = item.ValueCopy(nil)
+
+		item, err = txn.Get(lastHash)
+		util.Handle(err, "MineBlock 2")
+		lastBlockData, _ := item.ValueCopy(nil)
+
+		lastBlock, _ := DeserializeBlock(lastBlockData)
+
+		lastHeight = lastBlock.Height
+
+		return err
+	})
+
+	util.Handle(err, "MineBlock 3")
+
+	newBlock, _ := CreateBlock(transactions, lastHash, lastHeight+1)
+
+	err = chain.Database.Update(func(txn *badger.Txn) error {
+		err := txn.Set(newBlock.Hash, newBlock.Serialize())
+		util.Handle(err, "MineBlock 4")
+		err = txn.Set([]byte("lh"), newBlock.Hash)
+
+		chain.LastHash = newBlock.Hash
+
+		return err
+	})
+	util.Handle(err, "MineBlock 5")
+
+	return newBlock
+}
+
+func (chain *Blockchain) AddBlock(block *Block) (*Block, error) {
+
+	var b Block
+
+	err := chain.Database.Update(func(txn *badger.Txn) error {
+		if _, err := txn.Get(block.Hash); err == nil {
+			return nil
+		}
+
+		blockData := block.Serialize()
+		err := txn.Set(block.Hash, blockData)
+		util.Handle(err, "AddBlock 1")
+
+		item, err := txn.Get([]byte("lh"))
+		util.Handle(err, "AddBlock 2")
+		lastHash, _ := item.ValueCopy(nil)
+
+		item, err = txn.Get(lastHash)
+		util.Handle(err, "AddBlock 3")
+		lastBlockData, _ := item.ValueCopy(nil)
+
+		lastBlock, _ := DeserializeBlock(lastBlockData)
+
+		if block.Height > lastBlock.Height {
+			err = txn.Set([]byte("lh"), block.Hash)
+			util.Handle(err, "AddBlock 4")
+			chain.LastHash = block.Hash
+		}
+
+		b = *lastBlock
+
+		return nil
+	})
+
+	util.Handle(err, "AddBlock 5")
+
+	return &b, err
+}
+
+func (chain *Blockchain) GetBlock(blockHash []byte) (*Block, error) {
+
+	var block *Block
+
+	err := chain.Database.View(func(txn *badger.Txn) error {
+		if item, err := txn.Get(blockHash); err != nil {
+			return errors.New("Block is not found")
+		} else {
+			blockData, _ := item.ValueCopy(nil)
+
+			block, _ = DeserializeBlock(blockData)
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, err
+		return block, err
 	}
 
-	err = chain.PostBlockToDB(lastHash, newBlock, chain.Database)
-
-	return newBlock, err
+	return block, nil
 }
 
 func (chain *Blockchain) GetAllBlocks() []*Block {
@@ -168,6 +266,52 @@ func (chain *Blockchain) GetBlockByHash(db *badger.DB, hash []byte) (*Block, err
 	})
 
 	return block, err
+}
+
+func (chain *Blockchain) GetBlockHashes() [][]byte {
+
+	var blocks [][]byte
+
+	iter := chain.NewIterator()
+
+	for {
+
+		block, err := iter.IterateNext()
+		if err != nil {
+			break
+		}
+
+		blocks = append(blocks, block.Hash)
+
+		if len(block.PrevHash) == 0 {
+			break
+		}
+	}
+
+	return blocks
+}
+
+func (chain *Blockchain) GetBestHeight() int {
+
+	var lastBlock *Block
+
+	err := chain.Database.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte(LAST_HASH_KEY))
+		util.Handle(err, "GetBestHeight 1")
+		lastHash, _ := item.ValueCopy(nil)
+
+		item, err = txn.Get(lastHash)
+		util.Handle(err, "GetBestHeight 2")
+		lastBlockData, _ := item.ValueCopy(nil)
+
+		lastBlock, _ = DeserializeBlock(lastBlockData)
+
+		return nil
+	})
+
+	util.Handle(err, "GetBestHeight 3")
+
+	return lastBlock.Height
 }
 
 func (chain *Blockchain) GetUnspentOutputs(db *badger.DB, address string) ([]*TxOutput, error) {
@@ -313,13 +457,7 @@ func LoadBlockchain(address string, nodeID uint16) (*Blockchain, error) {
 			}
 
 			// ----------------------------------------------------------
-			serializedBlock, err := genesis.Serialize()
-			if err != nil {
-				return err
-			}
-
-			// ----------------------------------------------------------
-			err = dbTXN.Set(genesis.Hash, serializedBlock)
+			err = dbTXN.Set(genesis.Hash, genesis.Serialize())
 			if err != nil {
 				return fmt.Errorf("failed to set serialized block in database")
 			}

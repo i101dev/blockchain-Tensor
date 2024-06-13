@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 
 	"github.com/i101dev/blockchain-Tensor/blockchain"
+	"github.com/i101dev/blockchain-Tensor/network"
 	"github.com/i101dev/blockchain-Tensor/types"
 	"github.com/i101dev/blockchain-Tensor/wallet"
 )
@@ -17,7 +17,8 @@ var (
 	cache map[string]*blockchain.Blockchain = make(map[string]*blockchain.Blockchain)
 
 	CHAIN_ID       = "blockchain"
-	ORIGIN_ADDRESS = "1MDghwANCEEUnbiCsdGPUTM9AVmfFr8auK"
+	ORIGIN_ADDRESS = "1CdnbM5PaWJRWMcMghkCoNPQaURHRsxFtj"
+	MINER_ADDRESS  = "1JFtRuBGZDkr8rZ1kDrV6T5QZk3rmjS2Ed"
 )
 
 type BlockchainServer struct {
@@ -223,11 +224,11 @@ func (bcs *BlockchainServer) AddTXN(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodPost:
 
-		var txn types.NewTxnReq
+		var txnPayload types.NewTxnReq
 		decoder := json.NewDecoder(req.Body)
 
 		// ----------------------------------------------------------
-		err := decoder.Decode(&txn)
+		err := decoder.Decode(&txnPayload)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -255,17 +256,17 @@ func (bcs *BlockchainServer) AddTXN(w http.ResponseWriter, req *http.Request) {
 		}
 
 		// ----------------------------------------------------------
-		newTxn := blockchain.NewTransaction(txn.From, txn.To, txn.Amount, &UTXOset, wallet)
-		cbTxn := blockchain.CoinbaseTX(txn.From, "")
+		newTxn := blockchain.NewTransaction(txnPayload.From, txnPayload.To, txnPayload.Amount, &UTXOset, wallet)
 
-		newBlock, err := chain.AddBlock([]*blockchain.Transaction{cbTxn, newTxn})
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		if txnPayload.MineNow {
+			cbTx := blockchain.CoinbaseTX(txnPayload.From, "")
+			txs := []*blockchain.Transaction{cbTx, newTxn}
+			block := chain.MineBlock(txs)
+			UTXOset.Update(block)
+		} else {
+			network.SendTx(network.NODE_ZERO, newTxn)
+			fmt.Println("\nsending txn")
 		}
-
-		UTXOset.Update(newBlock)
 
 		// ----------------------------------------------------------
 		m, err := newTxn.MarshalJSON()
@@ -414,8 +415,15 @@ func (bcs *BlockchainServer) Reindex(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (bcs *BlockchainServer) Run() {
+// ------------------------------------------------------------------
 
+func (bcs *BlockchainServer) startNetworkServer() {
+	bcs.LoadBlockchain()
+	chain, _ := bcs.GetBlockchain()
+	network.StartServer(chain, bcs.port, MINER_ADDRESS)
+}
+
+func (bcs *BlockchainServer) Run() {
 	if err := bcs.LoadBlockchain(); err != nil {
 		log.Fatal(err)
 	}
@@ -426,14 +434,13 @@ func (bcs *BlockchainServer) Run() {
 	http.HandleFunc("/getblock", bcs.GetBlock)
 	http.HandleFunc("/utxoset", bcs.GetUTXOset)
 	http.HandleFunc("/balance", bcs.GetBalance)
-
 	http.HandleFunc("/reindex", bcs.Reindex)
-
 	http.HandleFunc("/gettxn", bcs.GetTXN)
 	http.HandleFunc("/addtxn", bcs.AddTXN)
 
-	hostURL := "0.0.0.0:" + strconv.Itoa(int(bcs.port))
+	go bcs.startNetworkServer()
 
-	fmt.Println("Blockchain Server is live @:", hostURL)
+	hostURL := fmt.Sprintf("0.0.0.0:%d", bcs.port)
+	fmt.Println("Blockchain HTTP Server is live @:", hostURL)
 	log.Fatal(http.ListenAndServe(hostURL, nil))
 }

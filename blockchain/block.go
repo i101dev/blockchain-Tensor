@@ -12,6 +12,7 @@ import (
 
 type Block struct {
 	Timestamp    int64
+	Height       int
 	Nonce        int
 	PrevHash     []byte
 	Hash         []byte
@@ -52,48 +53,48 @@ func (b *Block) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (b *Block) UnmarshalJSON(data []byte) error {
-	aux := struct {
-		Timestamp    int64          `json:"timestamp"`
-		Nonce        int            `json:"nonce"`
-		PrevHash     string         `json:"prev_hash"`
-		Hash         string         `json:"hash"`
-		Transactions []*Transaction `json:"transactions"`
-	}{}
+// func (b *Block) UnmarshalJSON(data []byte) error {
+// 	aux := struct {
+// 		Timestamp    int64          `json:"timestamp"`
+// 		Nonce        int            `json:"nonce"`
+// 		PrevHash     string         `json:"prev_hash"`
+// 		Hash         string         `json:"hash"`
+// 		Transactions []*Transaction `json:"transactions"`
+// 	}{}
 
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
+// 	if err := json.Unmarshal(data, &aux); err != nil {
+// 		return err
+// 	}
 
-	prevHash, err := hex.DecodeString(aux.PrevHash)
-	if err != nil {
-		return err
-	}
+// 	prevHash, err := hex.DecodeString(aux.PrevHash)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	hash, err := hex.DecodeString(aux.Hash)
-	if err != nil {
-		return err
-	}
+// 	hash, err := hex.DecodeString(aux.Hash)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	b.Timestamp = aux.Timestamp
-	b.Nonce = aux.Nonce
-	b.PrevHash = prevHash
-	b.Hash = hash
-	b.Transactions = aux.Transactions
+// 	b.Timestamp = aux.Timestamp
+// 	b.Nonce = aux.Nonce
+// 	b.PrevHash = prevHash
+// 	b.Hash = hash
+// 	b.Transactions = aux.Transactions
 
-	return nil
-}
+// 	return nil
+// }
 
-func (b *Block) Serialize() ([]byte, error) {
+func (b *Block) Serialize() []byte {
 
 	var res bytes.Buffer
 	encoder := gob.NewEncoder(&res)
 
 	if err := encoder.Encode(b); err != nil {
-		return nil, fmt.Errorf("failed to encode block to bytes")
+		return nil
 	}
 
-	return res.Bytes(), nil
+	return res.Bytes()
 }
 
 func (b *Block) HashTransactions() []byte {
@@ -110,13 +111,14 @@ func (b *Block) HashTransactions() []byte {
 }
 
 func Genesis(coinbase *Transaction) (*Block, error) {
-	return CreateBlock([]*Transaction{coinbase}, []byte{})
+	return CreateBlock([]*Transaction{coinbase}, []byte{}, 0)
 }
 
-func CreateBlock(txs []*Transaction, prevHash []byte) (*Block, error) {
+func CreateBlock(txs []*Transaction, prevHash []byte, height int) (*Block, error) {
 
 	block := &Block{
 		Timestamp:    time.Now().UnixNano(),
+		Height:       height,
 		Nonce:        0,
 		PrevHash:     prevHash,
 		Hash:         []byte{},

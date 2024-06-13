@@ -46,40 +46,40 @@ func (in *TxInput) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (in *TxInput) UnmarshalJSON(data []byte) error {
-	aux := struct {
-		ID        string `json:"id"`
-		Out       int    `json:"out"`
-		Signature string `json:"signature"`
-		PubKey    string `json:"pubkey"`
-	}{}
+// func (in *TxInput) UnmarshalJSON(data []byte) error {
+// 	aux := struct {
+// 		ID        string `json:"id"`
+// 		Out       int    `json:"out"`
+// 		Signature string `json:"signature"`
+// 		PubKey    string `json:"pubkey"`
+// 	}{}
 
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
+// 	if err := json.Unmarshal(data, &aux); err != nil {
+// 		return err
+// 	}
 
-	id, err := hex.DecodeString(aux.ID)
-	if err != nil {
-		return err
-	}
+// 	id, err := hex.DecodeString(aux.ID)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	signature, err := hex.DecodeString(aux.Signature)
-	if err != nil {
-		return err
-	}
+// 	signature, err := hex.DecodeString(aux.Signature)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	pubKey, err := hex.DecodeString(aux.PubKey)
-	if err != nil {
-		return err
-	}
+// 	pubKey, err := hex.DecodeString(aux.PubKey)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	in.ID = id
-	in.Out = aux.Out
-	in.Signature = signature
-	in.PubKey = pubKey
+// 	in.ID = id
+// 	in.Out = aux.Out
+// 	in.Signature = signature
+// 	in.PubKey = pubKey
 
-	return nil
-}
+// 	return nil
+// }
 
 // ---------------------------------------------------------------------
 type TxOutput struct {
@@ -103,25 +103,25 @@ func (out *TxOutput) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (out *TxOutput) UnmarshalJSON(data []byte) error {
-	aux := struct {
-		Value      int    `json:"value"`
-		PubKeyHash string `json:"pubkey_hash"`
-	}{}
+// func (out *TxOutput) UnmarshalJSON(data []byte) error {
+// 	aux := struct {
+// 		Value      int    `json:"value"`
+// 		PubKeyHash string `json:"pubkey_hash"`
+// 	}{}
 
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
+// 	if err := json.Unmarshal(data, &aux); err != nil {
+// 		return err
+// 	}
 
-	out.Value = aux.Value
-	var err error
-	out.PubKeyHash, err = hex.DecodeString(aux.PubKeyHash)
-	if err != nil {
-		return err
-	}
+// 	out.Value = aux.Value
+// 	var err error
+// 	out.PubKeyHash, err = hex.DecodeString(aux.PubKeyHash)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 func (out *TxOutput) Lock(address []byte) {
 	pubKeyHash := util.Base58Decode(address)
