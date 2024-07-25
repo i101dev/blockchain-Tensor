@@ -19,14 +19,14 @@ import (
 )
 
 type Transaction struct {
-	ID      []byte // the hash of the transaction
+	HashID  []byte
 	Inputs  []TxInput
 	Outputs []TxOutput
 }
 
 func (t *Transaction) Print() {
 	fmt.Println(strings.Repeat("-", 70))
-	fmt.Printf("> ID: %x", t.ID)
+	fmt.Printf("> ID: %x", t.HashID)
 	fmt.Println("\n> Inputs:")
 	for _, input := range t.Inputs {
 		input.Print()
@@ -44,7 +44,7 @@ func (t Transaction) Serialize() []byte {
 	encoder := gob.NewEncoder(&encoded)
 
 	if err := encoder.Encode(t); err != nil {
-		util.Handle(err, "Serialize Transaction")
+		util.HandleError(err, "Serialize Transaction")
 	}
 
 	return encoded.Bytes()
@@ -52,14 +52,14 @@ func (t Transaction) Serialize() []byte {
 
 func (t *Transaction) Hash() []byte {
 
-	var hash [32]byte
+	var h [32]byte
 
 	txCopy := *t
-	txCopy.ID = []byte{}
+	txCopy.HashID = []byte{}
 
-	hash = sha256.Sum256(txCopy.Serialize())
+	h = sha256.Sum256(txCopy.Serialize())
 
-	return hash[:]
+	return h[:]
 }
 
 func (t *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transaction) {
@@ -68,7 +68,7 @@ func (t *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transact
 	}
 
 	for _, in := range t.Inputs {
-		if prevTXs[hex.EncodeToString(in.ID)].ID == nil {
+		if prevTXs[hex.EncodeToString(in.ID)].HashID == nil {
 			log.Panic("\n *** >>> ERROR: previous transaction is not correct")
 		}
 	}
@@ -81,11 +81,11 @@ func (t *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transact
 		txCopy.Inputs[inId].PubKey = prevTX.Outputs[in.Out].PubKeyHash
 		txCopy.Inputs[inId].Signature = nil
 
-		txCopy.ID = txCopy.Hash()
+		txCopy.HashID = txCopy.Hash()
 		txCopy.Inputs[inId].PubKey = nil
 
-		r, s, err := ecdsa.Sign(rand.Reader, &privKey, txCopy.ID)
-		util.Handle(err, "Sign Transaction")
+		r, s, err := ecdsa.Sign(rand.Reader, &privKey, txCopy.HashID)
+		util.HandleError(err, "Sign Transaction")
 
 		signature := append(r.Bytes(), s.Bytes()...)
 
@@ -100,7 +100,7 @@ func (t *Transaction) Verify(prevTXs map[string]Transaction) bool {
 
 	// Verify each of the inputs exists
 	for _, in := range t.Inputs {
-		if prevTXs[hex.EncodeToString(in.ID)].ID == nil {
+		if prevTXs[hex.EncodeToString(in.ID)].HashID == nil {
 			log.Panic("Previous transaction not correct")
 		}
 	}
@@ -114,7 +114,8 @@ func (t *Transaction) Verify(prevTXs map[string]Transaction) bool {
 		prevTx := prevTXs[hex.EncodeToString(in.ID)]
 		txCopy.Inputs[inId].Signature = nil
 		txCopy.Inputs[inId].PubKey = prevTx.Outputs[in.Out].PubKeyHash
-		txCopy.ID = txCopy.Hash()
+
+		txCopy.HashID = txCopy.Hash()
 		txCopy.Inputs[inId].PubKey = nil
 
 		// Deconstruct the signature
@@ -137,7 +138,7 @@ func (t *Transaction) Verify(prevTXs map[string]Transaction) bool {
 			Y:     &y,
 		}
 
-		if !ecdsa.Verify(&rawPubKey, txCopy.ID, &r, &s) {
+		if !ecdsa.Verify(&rawPubKey, txCopy.HashID, &r, &s) {
 			return false
 		}
 	}
@@ -157,7 +158,7 @@ func (tx *Transaction) TrimmedCopy() Transaction {
 		outputs = append(outputs, TxOutput{out.Value, out.PubKeyHash})
 	}
 
-	txCopy := Transaction{tx.ID, inputs, outputs}
+	txCopy := Transaction{tx.HashID, inputs, outputs}
 
 	return txCopy
 }
@@ -168,7 +169,7 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		Inputs  []TxInput  `json:"inputs"`
 		Outputs []TxOutput `json:"outputs"`
 	}{
-		ID:      hex.EncodeToString(t.ID),
+		ID:      hex.EncodeToString(t.HashID),
 		Inputs:  t.Inputs,
 		Outputs: t.Outputs,
 	})
@@ -210,7 +211,7 @@ func CoinbaseTX(to string, data string) *Transaction {
 		randData := make([]byte, 24)
 		_, err := rand.Read(randData)
 		if err != nil {
-			util.Handle(err, "CoinbaseTX")
+			util.HandleError(err, "CoinbaseTX")
 		}
 
 		data = fmt.Sprintf("%x", randData)
@@ -226,12 +227,12 @@ func CoinbaseTX(to string, data string) *Transaction {
 	txOut := NewTXOutput(20, to)
 
 	newTX := Transaction{
-		ID:      nil,
+		HashID:  nil,
 		Inputs:  []TxInput{txIn},
 		Outputs: []TxOutput{*txOut},
 	}
 
-	newTX.ID = newTX.Hash()
+	newTX.HashID = newTX.Hash()
 
 	return &newTX
 }
@@ -253,12 +254,12 @@ func NewTransaction(from, to string, amount int, UTXO *UTXOSet, senderWallet *wa
 		log.Panic("Error: not enough funds")
 	}
 
-	for txid, outs := range validOutputs {
-		txID, err := hex.DecodeString(txid)
-		util.Handle(err, "NewTransaction 1")
+	for txHash, outs := range validOutputs {
+		txHashID, err := hex.DecodeString(txHash)
+		util.HandleError(err, "NewTransaction 1")
 
-		for _, out := range outs {
-			input := TxInput{out, txID, nil, w.PublicKey}
+		for _, outIndex := range outs {
+			input := TxInput{outIndex, txHashID, nil, w.PublicKey}
 			inputs = append(inputs, input)
 		}
 	}
@@ -270,7 +271,7 @@ func NewTransaction(from, to string, amount int, UTXO *UTXOSet, senderWallet *wa
 	}
 
 	tx := Transaction{nil, inputs, outputs}
-	tx.ID = tx.Hash()
+	tx.HashID = tx.Hash()
 	UTXO.Blockchain.SignTransaction(&tx, w.PrivateKey)
 
 	return &tx
@@ -281,6 +282,6 @@ func DeserializeTransaction(data []byte) Transaction {
 
 	decoder := gob.NewDecoder(bytes.NewReader(data))
 	err := decoder.Decode(&transaction)
-	util.Handle(err, "DeserializeTransaction")
+	util.HandleError(err, "DeserializeTransaction")
 	return transaction
 }

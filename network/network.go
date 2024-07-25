@@ -143,8 +143,7 @@ func SendData(addr string, data []byte) {
 
 	defer conn.Close()
 
-	_, err = io.Copy(conn, bytes.NewReader(data))
-	if err != nil {
+	if _, err = io.Copy(conn, bytes.NewReader(data)); err != nil {
 		log.Panic(err)
 	}
 }
@@ -216,14 +215,14 @@ func HandleTx(request []byte, chain *blockchain.Blockchain) {
 
 	txData := payload.Transaction
 	tx := blockchain.DeserializeTransaction(txData)
-	memoryPool[hex.EncodeToString(tx.ID)] = tx
+	memoryPool[hex.EncodeToString(tx.HashID)] = tx
 
 	fmt.Printf("%s, %d", nodeAddress, len(memoryPool))
 
 	if nodeAddress == NODE_ZERO {
 		for _, node := range KnownNodes {
 			if node != nodeAddress && node != payload.AddrFrom {
-				SendInv(node, TX, [][]byte{tx.ID})
+				SendInv(node, TX, [][]byte{tx.HashID})
 			}
 		}
 	} else {
@@ -264,7 +263,7 @@ func HandleInv(request []byte, chain *blockchain.Blockchain) {
 	if payload.Type == TX {
 		txID := payload.Items[0]
 
-		if memoryPool[hex.EncodeToString(txID)].ID == nil {
+		if memoryPool[hex.EncodeToString(txID)].HashID == nil {
 			SendGetData(payload.AddrFrom, TX, txID)
 		}
 	}
@@ -417,7 +416,7 @@ func MineTx(chain *blockchain.Blockchain) {
 	// ------------------------
 	//
 	for id := range memoryPool {
-		fmt.Printf("tx: %s\n", memoryPool[id].ID)
+		fmt.Printf("tx: %s\n", memoryPool[id].HashID)
 		tx := memoryPool[id]
 		if chain.VerifyTransaction(&tx) {
 			txs = append(txs, &tx)
@@ -441,7 +440,7 @@ func MineTx(chain *blockchain.Blockchain) {
 	fmt.Println("New Block mined")
 
 	for _, tx := range txs {
-		txID := hex.EncodeToString(tx.ID)
+		txID := hex.EncodeToString(tx.HashID)
 		delete(memoryPool, txID)
 	}
 

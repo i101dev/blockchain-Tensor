@@ -16,8 +16,8 @@ import (
 type TxInput struct {
 	Out       int
 	ID        []byte
-	Signature []byte
 	PubKey    []byte
+	Signature []byte
 }
 
 func (in *TxInput) UsesKey(pubKeyHash []byte) bool {
@@ -154,7 +154,7 @@ func (outs TxOutputs) Serialize() []byte {
 	var buffer bytes.Buffer
 	encode := gob.NewEncoder(&buffer)
 	err := encode.Encode(outs)
-	util.Handle(err, "Serialize TxOutputs")
+	util.HandleError(err, "Serialize TxOutputs")
 	return buffer.Bytes()
 }
 
@@ -162,6 +162,6 @@ func DeserializeTxOutputs(data []byte) TxOutputs {
 	var outputs TxOutputs
 	decode := gob.NewDecoder(bytes.NewReader(data))
 	err := decode.Decode(&outputs)
-	util.Handle(err, "DeserializeTxOutputs")
+	util.HandleError(err, "DeserializeTxOutputs")
 	return outputs
 }

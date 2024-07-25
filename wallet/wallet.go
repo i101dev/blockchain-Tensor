@@ -76,12 +76,12 @@ func (w *Wallet) LoadFile() error {
 	var wallet Wallet
 
 	fileContent, err := os.ReadFile(walletFile)
-	util.Handle(err, "LoadFile 1")
+	util.HandleError(err, "LoadFile 1")
 
 	gob.Register(elliptic.P256())
 	decoder := gob.NewDecoder(bytes.NewReader(fileContent))
 	err = decoder.Decode(&wallet)
-	util.Handle(err, "LoadFile 2")
+	util.HandleError(err, "LoadFile 2")
 
 	w.Accounts = wallet.Accounts
 
@@ -94,10 +94,10 @@ func (w *Wallet) SaveFile() {
 
 	encoder := gob.NewEncoder(&content)
 	err := encoder.Encode(w)
-	util.Handle(err, "SaveFile 1")
+	util.HandleError(err, "SaveFile 1")
 
 	err = os.WriteFile(walletFile, content.Bytes(), 0644)
-	util.Handle(err, "SaveFile 2")
+	util.HandleError(err, "SaveFile 2")
 }
 
 // ---------------------------------------------------------------

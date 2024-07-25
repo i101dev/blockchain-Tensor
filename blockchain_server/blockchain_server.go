@@ -25,12 +25,6 @@ type BlockchainServer struct {
 	port uint16
 }
 
-func NewBlockchainServer(port uint16) *BlockchainServer {
-	return &BlockchainServer{
-		port: port,
-	}
-}
-
 func (bcs *BlockchainServer) LoadBlockchain() error {
 
 	bc, err := blockchain.LoadBlockchain(ORIGIN_ADDRESS, bcs.port)
@@ -416,6 +410,12 @@ func (bcs *BlockchainServer) Reindex(w http.ResponseWriter, req *http.Request) {
 }
 
 // ------------------------------------------------------------------
+
+func NewBlockchainServer(port uint16) *BlockchainServer {
+	return &BlockchainServer{
+		port: port,
+	}
+}
 
 func (bcs *BlockchainServer) startNetworkServer() {
 	bcs.LoadBlockchain()

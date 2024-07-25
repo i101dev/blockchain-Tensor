@@ -53,38 +53,6 @@ func (b *Block) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// func (b *Block) UnmarshalJSON(data []byte) error {
-// 	aux := struct {
-// 		Timestamp    int64          `json:"timestamp"`
-// 		Nonce        int            `json:"nonce"`
-// 		PrevHash     string         `json:"prev_hash"`
-// 		Hash         string         `json:"hash"`
-// 		Transactions []*Transaction `json:"transactions"`
-// 	}{}
-
-// 	if err := json.Unmarshal(data, &aux); err != nil {
-// 		return err
-// 	}
-
-// 	prevHash, err := hex.DecodeString(aux.PrevHash)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	hash, err := hex.DecodeString(aux.Hash)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	b.Timestamp = aux.Timestamp
-// 	b.Nonce = aux.Nonce
-// 	b.PrevHash = prevHash
-// 	b.Hash = hash
-// 	b.Transactions = aux.Transactions
-
-// 	return nil
-// }
-
 func (b *Block) Serialize() []byte {
 
 	var res bytes.Buffer

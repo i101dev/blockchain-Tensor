@@ -92,7 +92,7 @@ func (utxo UTXOSet) CountTransactions() int {
 		return nil
 	})
 
-	util.Handle(err, "CountTransactions")
+	util.HandleError(err, "CountTransactions")
 
 	return counter
 }
@@ -107,9 +107,9 @@ func (utxo *UTXOSet) Update(block *Block) {
 					updatedOuts := TxOutputs{}
 					inID := append(utxoPrefix, in.ID...)
 					item, err := txn.Get(inID)
-					util.Handle(err, "Update 1")
+					util.HandleError(err, "Update 1")
 					v, err := item.ValueCopy(nil)
-					util.Handle(err, "Update 2")
+					util.HandleError(err, "Update 2")
 
 					outs := DeserializeTxOutputs(v)
 
@@ -140,7 +140,7 @@ func (utxo *UTXOSet) Update(block *Block) {
 				newOutputs.Outputs = append(newOutputs.Outputs, out)
 			}
 
-			txID := append(utxoPrefix, tx.ID...)
+			txID := append(utxoPrefix, tx.HashID...)
 			if err := txn.Set(txID, newOutputs.Serialize()); err != nil {
 				log.Panic(err)
 			}
@@ -149,7 +149,7 @@ func (utxo *UTXOSet) Update(block *Block) {
 		return nil
 	})
 
-	util.Handle(err, "Update 3")
+	util.HandleError(err, "Update 3")
 }
 
 func (utxo UTXOSet) Reindex() {
@@ -172,13 +172,13 @@ func (utxo UTXOSet) Reindex() {
 			key = append(utxoPrefix, key...)
 
 			err = txn.Set(key, outs.Serialize())
-			util.Handle(err, "Reindex 1")
+			util.HandleError(err, "Reindex 1")
 		}
 
 		return nil
 	})
 
-	util.Handle(err, "Reindex 2")
+	util.HandleError(err, "Reindex 2")
 }
 
 func (u UTXOSet) FindUnspentTransactions(pubKeyHash []byte) []TxOutput {
@@ -197,7 +197,7 @@ func (u UTXOSet) FindUnspentTransactions(pubKeyHash []byte) []TxOutput {
 
 			item := it.Item()
 			v, err := item.ValueCopy(nil)
-			util.Handle(err, "FindUnspentTransactions 1")
+			util.HandleError(err, "FindUnspentTransactions 1")
 
 			outs := DeserializeTxOutputs(v)
 
@@ -211,7 +211,7 @@ func (u UTXOSet) FindUnspentTransactions(pubKeyHash []byte) []TxOutput {
 		return nil
 	})
 
-	util.Handle(err, "FindUnspentTransactions 2")
+	util.HandleError(err, "FindUnspentTransactions 2")
 
 	return UTXOs
 }
@@ -235,7 +235,7 @@ func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[s
 			k := item.Key()
 			v, err := item.ValueCopy(nil)
 
-			util.Handle(err, "FindSpendableOutputs 1")
+			util.HandleError(err, "FindSpendableOutputs 1")
 
 			k = bytes.TrimPrefix(k, utxoPrefix)
 			txID := hex.EncodeToString(k)
@@ -251,7 +251,7 @@ func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[s
 		return nil
 	})
 
-	util.Handle(err, "FindSpendableOutputs 2")
+	util.HandleError(err, "FindSpendableOutputs 2")
 
 	return accumulated, unspentOuts
 }

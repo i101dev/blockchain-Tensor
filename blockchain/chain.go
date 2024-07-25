@@ -48,7 +48,7 @@ func (chain *Blockchain) CloseDB() {
 	}
 
 	err := chain.Database.Close()
-	util.Handle(err, "Close 1")
+	util.HandleError(err, "Close 1")
 }
 
 func (chain *Blockchain) GetLastHash(db *badger.DB) ([]byte, error) {
@@ -126,34 +126,39 @@ func (chain *Blockchain) MineBlock(transactions []*Transaction) *Block {
 
 	err := chain.Database.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte("lh"))
-		util.Handle(err, "MineBlock 1")
-		lastHash, _ = item.ValueCopy(nil)
+		util.HandleError(err, "MineBlock 1")
 
-		item, err = txn.Get(lastHash)
-		util.Handle(err, "MineBlock 2")
+		lastHash, _ = item.ValueCopy(nil)
+		// util.Handle(err, "MineBlock 2")
+
+		item, _ = txn.Get(lastHash)
+		// util.Handle(err, "MineBlock 3")
+
 		lastBlockData, _ := item.ValueCopy(nil)
+		// util.Handle(err, "MineBlock 4")
 
 		lastBlock, _ := DeserializeBlock(lastBlockData)
+		// util.Handle(err, "MineBlock 5")
 
 		lastHeight = lastBlock.Height
 
-		return err
+		return nil
 	})
 
-	util.Handle(err, "MineBlock 3")
+	util.HandleError(err, "MineBlock 3")
 
 	newBlock, _ := CreateBlock(transactions, lastHash, lastHeight+1)
 
 	err = chain.Database.Update(func(txn *badger.Txn) error {
 		err := txn.Set(newBlock.Hash, newBlock.Serialize())
-		util.Handle(err, "MineBlock 4")
+		util.HandleError(err, "MineBlock 4")
 		err = txn.Set([]byte("lh"), newBlock.Hash)
 
 		chain.LastHash = newBlock.Hash
 
 		return err
 	})
-	util.Handle(err, "MineBlock 5")
+	util.HandleError(err, "MineBlock 5")
 
 	return newBlock
 }
@@ -169,21 +174,21 @@ func (chain *Blockchain) AddBlock(block *Block) (*Block, error) {
 
 		blockData := block.Serialize()
 		err := txn.Set(block.Hash, blockData)
-		util.Handle(err, "AddBlock 1")
+		util.HandleError(err, "AddBlock 1")
 
 		item, err := txn.Get([]byte("lh"))
-		util.Handle(err, "AddBlock 2")
+		util.HandleError(err, "AddBlock 2")
 		lastHash, _ := item.ValueCopy(nil)
 
 		item, err = txn.Get(lastHash)
-		util.Handle(err, "AddBlock 3")
+		util.HandleError(err, "AddBlock 3")
 		lastBlockData, _ := item.ValueCopy(nil)
 
 		lastBlock, _ := DeserializeBlock(lastBlockData)
 
 		if block.Height > lastBlock.Height {
 			err = txn.Set([]byte("lh"), block.Hash)
-			util.Handle(err, "AddBlock 4")
+			util.HandleError(err, "AddBlock 4")
 			chain.LastHash = block.Hash
 		}
 
@@ -192,7 +197,7 @@ func (chain *Blockchain) AddBlock(block *Block) (*Block, error) {
 		return nil
 	})
 
-	util.Handle(err, "AddBlock 5")
+	util.HandleError(err, "AddBlock 5")
 
 	return &b, err
 }
@@ -297,11 +302,11 @@ func (chain *Blockchain) GetBestHeight() int {
 
 	err := chain.Database.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(LAST_HASH_KEY))
-		util.Handle(err, "GetBestHeight 1")
+		util.HandleError(err, "GetBestHeight 1")
 		lastHash, _ := item.ValueCopy(nil)
 
 		item, err = txn.Get(lastHash)
-		util.Handle(err, "GetBestHeight 2")
+		util.HandleError(err, "GetBestHeight 2")
 		lastBlockData, _ := item.ValueCopy(nil)
 
 		lastBlock, _ = DeserializeBlock(lastBlockData)
@@ -309,7 +314,7 @@ func (chain *Blockchain) GetBestHeight() int {
 		return nil
 	})
 
-	util.Handle(err, "GetBestHeight 3")
+	util.HandleError(err, "GetBestHeight 3")
 
 	return lastBlock.Height
 }
@@ -352,7 +357,7 @@ func (chain *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
 		}
 
 		for _, tx := range block.Transactions {
-			if bytes.Equal(tx.ID, ID) {
+			if bytes.Equal(tx.HashID, ID) {
 				return *tx, nil
 			}
 		}
@@ -372,9 +377,9 @@ func (bc *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey)
 	for _, txInput := range tx.Inputs {
 
 		prevTX, err := bc.FindTransaction(txInput.ID)
-		util.Handle(err, "SignTransaction")
+		util.HandleError(err, "SignTransaction")
 
-		prevTXID := hex.EncodeToString(prevTX.ID)
+		prevTXID := hex.EncodeToString(prevTX.HashID)
 		prevTXs[prevTXID] = prevTX
 	}
 
@@ -392,9 +397,9 @@ func (bc *Blockchain) VerifyTransaction(tx *Transaction) bool {
 	for _, in := range tx.Inputs {
 
 		prevTX, err := bc.FindTransaction(in.ID)
-		util.Handle(err, "VerifyTransaction")
+		util.HandleError(err, "VerifyTransaction")
 
-		prevTXID := hex.EncodeToString(prevTX.ID)
+		prevTXID := hex.EncodeToString(prevTX.HashID)
 		prevTXs[prevTXID] = prevTX
 	}
 
@@ -408,7 +413,7 @@ func OpenDB(chain *Blockchain) *badger.DB {
 	opts.Logger = &NullLogger{}
 
 	db, err := badger.Open(opts)
-	util.Handle(err, "Open BadgerDB 1")
+	util.HandleError(err, "Open BadgerDB 1")
 
 	chain.Database = db
 
@@ -503,7 +508,7 @@ func (chain *Blockchain) FindUTXO() map[string]TxOutputs {
 		}
 
 		for _, tx := range block.Transactions {
-			txID := hex.EncodeToString(tx.ID)
+			txID := hex.EncodeToString(tx.HashID)
 
 		Outputs:
 			for outIdx, out := range tx.Outputs {
